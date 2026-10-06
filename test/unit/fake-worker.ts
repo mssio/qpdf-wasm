@@ -7,6 +7,7 @@ export class FakeWorker implements WorkerLike {
   static spawned = 0;
   onmessage: ((event: { data: FromWorker }) => void) | null = null;
   onerror: ((event: unknown) => void) | null = null;
+  onmessageerror: ((event: unknown) => void) | null = null;
   terminated = false;
   private readonly handle = createWorkerHandler({
     postMessage: (message, transfer = []) => {

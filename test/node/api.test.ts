@@ -75,6 +75,7 @@ describe("merge / split / selectPages", () => {
   it("throws RangeError for invalid arguments", async () => {
     await expect(qpdf.merge([])).rejects.toThrow(RangeError);
     await expect(qpdf.split(await form(), { pagesPerFile: 0 })).rejects.toThrow(RangeError);
+    await expect(createQpdf({ inline: true, workers: 0 })).rejects.toThrow(RangeError);
   });
 });
 

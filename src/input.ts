@@ -21,7 +21,7 @@ export async function toBytes(input: PdfInput): Promise<Uint8Array> {
   throw new TypeError("Unsupported PDF input: expected Uint8Array, ArrayBuffer or Blob");
 }
 
-function assertNotDetached(buffer: ArrayBufferLike): void {
+export function assertNotDetached(buffer: ArrayBufferLike): void {
   if ((buffer as { detached?: boolean }).detached === true) {
     throw new TypeError(
       "PDF input buffer is detached: an earlier qpdf call transferred it to a worker. Pass bytes.slice() to keep a copy.",

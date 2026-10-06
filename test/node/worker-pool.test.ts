@@ -84,6 +84,20 @@ describe("worker pool", () => {
     }
   });
 
+  it("rejects a second concurrent call with the same buffer clearly and keeps working", async () => {
+    for (const size of [1, 2]) {
+      const qpdf = createQpdfApi(await pool(size));
+      const form = await fixture("form.pdf");
+      const [a, b] = await Promise.allSettled([qpdf.info(form), qpdf.info(form)]);
+      expect(a.status).toBe("fulfilled");
+      expect((a as PromiseFulfilledResult<{ pageCount: number }>).value.pageCount).toBe(3);
+      expect(b.status).toBe("rejected");
+      expect(String((b as PromiseRejectedResult).reason)).toMatch(/detached.*slice\(\)/);
+      expect((await qpdf.info(await fixture("form.pdf"))).pageCount).toBe(3);
+      qpdf.terminate();
+    }
+  });
+
   it("fails to start with FAILED when the wasm cannot be loaded", async () => {
     const bad = new URL("./missing.wasm", defaultWasmUrl()).href;
     const err = await createWorkerPool({ size: 1, wasmUrl: bad, spawn: () => new FakeWorker() }).catch((e: unknown) => e);

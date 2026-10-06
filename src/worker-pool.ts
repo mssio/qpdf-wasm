@@ -1,11 +1,13 @@
 import { QpdfError, terminatedError } from "./errors.js";
 import type { FromWorker, ToWorker } from "./protocol.js";
+import { assertNotDetached } from "./input.js";
 import { transferablesOf } from "./transfer.js";
 import type { Executor, JobSpec, RunResult } from "./types.js";
 
 export interface WorkerLike {
   onmessage: ((event: { data: FromWorker }) => void) | null;
   onerror: ((event: unknown) => void) | null;
+  onmessageerror: ((event: unknown) => void) | null;
   postMessage(message: ToWorker, transfer?: Transferable[]): void;
   terminate(): void;
 }
@@ -61,6 +63,10 @@ export async function createWorkerPool(options: WorkerPoolOptions): Promise<Exec
         if (slot.ready) crash(slot, event);
         else failStart(describe(event));
       };
+      slot.worker.onmessageerror = (event) => {
+        if (slot.ready) crash(slot, event);
+        else failStart(describe(event));
+      };
       slot.worker.postMessage({ type: "init", wasmUrl: options.wasmUrl });
     });
   }
@@ -90,12 +96,24 @@ export async function createWorkerPool(options: WorkerPoolOptions): Promise<Exec
 
   function dispatch(): void {
     if (terminated) return;
-    for (const slot of slots) {
-      if (!slot.ready || slot.current) continue;
-      const job = queue.shift();
-      if (!job) return;
-      slot.current = job;
-      slot.worker.postMessage({ type: "job", id: job.id, spec: job.spec }, transferablesOf(job.spec.files));
+    for (const slot of [...slots]) {
+      // A job that cannot be sent is rejected and the slot immediately takes the next one.
+      while (slot.ready && !slot.current) {
+        const job = queue.shift();
+        if (!job) return;
+        slot.current = job;
+        try {
+          for (const bytes of Object.values(job.spec.files)) assertNotDetached(bytes.buffer);
+          slot.worker.postMessage({ type: "job", id: job.id, spec: job.spec }, transferablesOf(job.spec.files));
+        } catch (error) {
+          slot.current = null;
+          job.reject(
+            error instanceof TypeError
+              ? error
+              : new QpdfError("FAILED", `failed to send job to qpdf worker: ${error instanceof Error ? error.message : String(error)}`),
+          );
+        }
+      }
     }
   }
 

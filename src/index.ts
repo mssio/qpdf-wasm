@@ -29,11 +29,11 @@ export type {
  */
 export async function createQpdf(options: CreateQpdfOptions = {}): Promise<Qpdf> {
   const wasmUrl = resolveWasmUrl(options.wasmUrl);
+  const size = options.workers ?? 1;
+  if (!Number.isInteger(size) || size < 1) throw new RangeError("createQpdf() workers must be an integer >= 1");
   const inline = options.inline ?? typeof Worker === "undefined";
   if (inline) return createQpdfApi(createInlineExecutor(await loadWasmModule(wasmUrl)));
 
-  const size = options.workers ?? 1;
-  if (!Number.isInteger(size) || size < 1) throw new RangeError("createQpdf() workers must be an integer >= 1");
   const pool = await createWorkerPool({
     size,
     wasmUrl: wasmUrl.href,
