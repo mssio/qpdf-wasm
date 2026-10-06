@@ -1,0 +1,8 @@
+{
+  "name": "qpdf-wasm-webpack-fixture",
+  "private": true,
+  "type": "module",
+  "scripts": { "build": "webpack --config webpack.config.mjs" },
+  "dependencies": { "@mssio/qpdf-wasm": "file:../../../../out/pack/mssio-qpdf-wasm.tgz" },
+  "devDependencies": { "webpack": "latest", "webpack-cli": "latest" }
+}
