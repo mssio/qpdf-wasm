@@ -12,7 +12,7 @@ or inline (Node). The design source of truth is
 | Path | Responsibility |
 |---|---|
 | `vendor/qpdf` | qpdf git submodule pinned to a release tag. **Read-only.** |
-| `build/` | Wasm build: `emsdk-version` (pinned Emscripten), `build.sh` (runs in Docker; also regenerates `THIRD_PARTY_NOTICES.md` and README's qpdf version line), `qpdf-version.sh`, `patches/` |
+| `build/` | Wasm build: `emsdk-version` + `emsdk-digest` (pinned Emscripten image), `build.sh` (runs in Docker; also regenerates `THIRD_PARTY_NOTICES.md` and README's qpdf version line), `qpdf-version.sh`, `patches/` |
 | `scripts/` | Host-side tooling: Docker wrapper, dist copy, package/README/size checks, `check-generated.sh` (build output committed?), browser-test helpers, `ci.sh` |
 | `src/wasm/` | Generated `qpdf.mjs`/`qpdf.wasm`/`meta.mjs` (gitignored) + committed `.d.mts` declarations |
 | `src/jobs/` | Pure functions: options → qpdf job JSON (`JobSpec`). One file per helper |
@@ -78,7 +78,14 @@ Commit the submodule, the regenerated notices and README, and a CHANGELOG entry 
 
 ### Upgrade Emscripten
 
-Change `build/emsdk-version`, then run `npm run build:wasm && bash scripts/ci.sh`. Separate PR. Note the size delta in the PR.
+Change `build/emsdk-version`, then record the new image digest (Dependabot can't update it):
+
+```bash
+docker buildx imagetools inspect "emscripten/emsdk:$(cat build/emsdk-version)" | awk '/^Digest:/{print $2; exit}' > build/emsdk-digest
+npm run build:wasm && bash scripts/ci.sh
+```
+
+Separate PR. Note the size delta in the PR.
 
 ### Add a typed helper
 

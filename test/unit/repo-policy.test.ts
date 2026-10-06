@@ -54,3 +54,13 @@ describe("GitHub Actions pinning", () => {
     expect(count).toBeGreaterThan(0);
   });
 });
+
+describe("Emscripten image pin", () => {
+  it("records the emsdk image digest", () => {
+    expect(readText("build/emsdk-digest").trim()).toMatch(/^sha256:[0-9a-f]{64}$/);
+  });
+
+  it("runs the image by version and digest", () => {
+    expect(readText("scripts/build-wasm.sh")).toContain('"emscripten/emsdk:${EMSDK_VERSION}@${EMSDK_DIGEST}"');
+  });
+});
