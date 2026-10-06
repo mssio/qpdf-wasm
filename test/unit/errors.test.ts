@@ -24,6 +24,12 @@ describe("classifyFailure", () => {
   it("detects input that is not a PDF", () => {
     expect(classifyFailure(NOT_A_PDF)).toBe("INVALID_PDF");
   });
+  it("detects a missing PDF header on its own", () => {
+    expect(classifyFailure("WARNING: in.pdf: can't find PDF header")).toBe("INVALID_PDF");
+  });
+  it("detects an unrecoverable trailer on its own", () => {
+    expect(classifyFailure("qpdf: in.pdf: unable to find trailer dictionary while recovering damaged file")).toBe("INVALID_PDF");
+  });
   it("falls back to FAILED", () => {
     expect(classifyFailure(BAD_RANGE)).toBe("FAILED");
   });
