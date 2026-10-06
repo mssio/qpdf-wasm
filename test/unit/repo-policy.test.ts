@@ -64,3 +64,14 @@ describe("Emscripten image pin", () => {
     expect(readText("scripts/build-wasm.sh")).toContain('"emscripten/emsdk:${EMSDK_VERSION}@${EMSDK_DIGEST}"');
   });
 });
+
+describe("release metadata", () => {
+  it("has the newest CHANGELOG heading equal to package.json's version", () => {
+    const heading = readText("CHANGELOG.md").match(/^## (\d+\.\d+\.\d+)\b/m);
+    expect(heading?.[1]).toBe(pkg.version);
+  });
+
+  it("is version 1.0.0", () => {
+    expect(pkg.version).toBe("1.0.0");
+  });
+});

@@ -1,6 +1,6 @@
 {
   "name": "@mssio/qpdf-wasm",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "qpdf compiled to WebAssembly: merge, split, encrypt, decrypt, linearize and more, in a Web Worker, for any SPA or Node.",
   "license": "Apache-2.0",
   "type": "module",

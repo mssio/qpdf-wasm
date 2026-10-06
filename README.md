@@ -401,13 +401,20 @@ both should still pass `bytes.slice()` whenever it reuses the bytes after a call
 
 ## Versioning
 
-This package uses its own semver:
-- **minor**: a new bundled qpdf version
-- **major**: breaking changes to this package's JS API
-- **patch**: fixes
+Since 1.0.0 this package follows [semver](https://semver.org) for its **public API**:
+- everything exported from `@mssio/qpdf-wasm`: `createQpdf` and its options, the `Qpdf` methods with their option and result types, `QpdfError` and its `code` values, and `qpdfVersion`;
+- the documented behaviour: exit-code handling, how inputs are transferred, and `run()` file semantics.
+
+| Change | Version |
+|---|---|
+| Breaking change to the above, including raising the minimum Node (24) or TypeScript (5.7) version | **major** |
+| New bundled qpdf version, new helpers or options | **minor** |
+| Fixes, Emscripten updates, docs, CI | **patch** |
+
+A qpdf update that changes PDF output bytes is not breaking. A qpdf update that removes a feature the typed helpers rely on would be released as a major.
 
 qpdf releases are picked up automatically and land as tested pull requests. The bundled qpdf version is in
-`qpdfVersion` and in the [CHANGELOG](./CHANGELOG.md).
+`qpdfVersion`, at the top of this README, and in the [CHANGELOG](./CHANGELOG.md).
 
 ## Building from source
 

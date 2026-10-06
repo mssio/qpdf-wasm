@@ -56,6 +56,7 @@ or inline (Node). The design source of truth is
 6. **qpdf message text is matched only in `src/errors.ts`**, and every pattern has a test.
 7. **Every API change updates, in the same PR:** `src/types.ts`, tests, `examples/` + README, AGENTS.md if workflow changed, CHANGELOG.md.
 8. **Never commit build output** (`dist/`, `out/`, `src/wasm/*.mjs|wasm`) and **never publish from a local machine**; releases come only from `.github/workflows/release.yml`.
+9. **Every GitHub Action is pinned to a full commit SHA** with a `# vX.Y.Z` comment (enforced by `test/unit/repo-policy.test.ts`); Dependabot updates them. The Emscripten image is pinned by digest (`build/emsdk-digest`).
 
 ## How to
 
@@ -107,14 +108,31 @@ If Dependabot reports errors for the fixture directories (their `file:` dependen
 
 ### Cut a release
 
-1. Make sure `main` is green. Move CHANGELOG "Unreleased" to the new version.
-2. `npm version <patch|minor|major> -m "release: v%s"` (creates the tag).
-3. `git push --follow-tags`. `release.yml` runs three jobs: `build` (tag must match `package.json`; wasm, dist, package checks, `npm pack` → artifact), `test` (all tests; browser tests install that artifact via `QPDF_TARBALL`), and `publish` (the only job with `id-token: write`; no checkout or installs, just `npm publish <tarball> --provenance`). Keep it that way: never run `npm ci`/fixtures in the job that can publish.
-4. **First release only:**
-   - Enable GitHub → repo Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests" (the `qpdf-update` workflow needs it to open PRs).
-   - Before tagging: create a 7-day granular npm token (read+write) and add it as the Actions secret `NPM_TOKEN`.
-   - After the publish: on npmjs.com → package → Settings → Trusted Publisher → GitHub Actions, set `mssio` / `qpdf-wasm` / `release.yml` and allow `npm publish`. Optionally enable "require 2FA and disallow tokens".
-   - Then delete the token and the `NPM_TOKEN` secret.
+1. Make sure `main` is green. Add a CHANGELOG section `## X.Y.Z — YYYY-MM-DD` at the top (`test/unit/repo-policy.test.ts` checks it matches `package.json`).
+2. `npm version <patch|minor|major> --no-git-tag-version`, commit `package.json`, `package-lock.json` and `CHANGELOG.md` as `release: vX.Y.Z`, and merge to `main`.
+3. On `main` (after `git pull`): `git tag -a vX.Y.Z -m "release: vX.Y.Z" && git push origin vX.Y.Z`.
+4. `release.yml` runs three jobs:
+   - `build`: `scripts/check-release-ref.sh` (the tag must match `package.json` and be on `main`), then the wasm, dist, package checks, and `npm pack` → artifact;
+   - `test`: all tests; the browser tests install that artifact via `QPDF_TARBALL`;
+   - `publish`: the only job with `id-token: write`. No checkout or installs; it runs `npm publish <tarball> --provenance` through npm trusted publishing (OIDC).
+
+   Keep it that way: never run `npm ci` or the fixtures in the job that can publish.
+5. Check: `npm view @mssio/qpdf-wasm version`. A new version can take a few minutes to appear.
+
+Trusted publisher on npmjs.com: `mssio` / `qpdf-wasm` / `release.yml`, environment empty. No npm token is used.
+
+## Repository settings (GitHub, set once by the maintainer)
+
+- **Settings → Rules → Rulesets → New branch ruleset** for `main`:
+  - require a pull request before merging;
+  - require status check **`verify`** (from the CI workflow);
+  - block force pushes;
+  - restrict deletions.
+
+  Add the maintainer to the bypass list for emergencies.
+- **Settings → Actions → General:**
+  - workflow permissions **"Read repository contents and packages permissions"**; the workflows request more per job;
+  - enable **"Allow GitHub Actions to create and approve pull requests"**, which the `qpdf-update` workflow needs.
 
 ## Known gotchas
 
@@ -144,3 +162,4 @@ If Dependabot reports errors for the fixture directories (their `file:` dependen
 | `package.json`, exports, files | `npm run build && npm run lint:package && npm run check:package && npm run test:browser` |
 | README/examples | `npm run check:readme && npm run test:node` |
 | `.github/workflows/*` | `npx --yes @action-validator/cli <each changed workflow>` |
+| `.github/dependabot.yml` | schema validation (see the Task 5 command in `docs/superpowers/plans/2026-10-06-v1-hardening.md`) |
