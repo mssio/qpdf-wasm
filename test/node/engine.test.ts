@@ -59,6 +59,25 @@ describe("runJob", () => {
     await expect(runJob(wasm, { args: [], files: { "../escape.pdf": form } })).rejects.toThrow(/invalid file path/);
   });
 
+  it("does not return inputs given with ./ or // as outputs", async () => {
+    const r = await runJob(wasm, {
+      args: ["--check", "a.pdf"],
+      files: { "./a.pdf": form, "docs//b.pdf": shared },
+    });
+    expect(r.exitCode).toBe(0);
+    expect(r.files).toEqual({});
+  });
+
+  it("rejects empty and directory-like paths", async () => {
+    for (const name of ["", ".", "/work", "/work/"]) {
+      await expect(runJob(wasm, { args: [], files: { [name]: form } })).rejects.toThrow(/invalid file path/);
+    }
+  });
+
+  it("rejects .. in the middle of a path", async () => {
+    await expect(runJob(wasm, { args: [], files: { "a/../b.pdf": form } })).rejects.toThrow(/invalid file path/);
+  });
+
   it("isolates jobs: 50 sequential mixed jobs including --json all succeed", async () => {
     for (let i = 0; i < 50; i++) {
       const args = i % 2 === 0 ? ["--json", "--json-key=pages", "in.pdf"] : ["--check", "in.pdf"];

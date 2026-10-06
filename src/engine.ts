@@ -65,8 +65,12 @@ function callMain(mod: QpdfModule, args: string[]): number {
 }
 
 function resolvePath(name: string): string {
-  const path = name.startsWith("/") ? name : `${WORKDIR}/${name}`;
-  if (path.split("/").includes("..")) throw new QpdfError("FAILED", `invalid file path: ${name}`);
+  const absolute = name.startsWith("/") ? name : `${WORKDIR}/${name}`;
+  const segments = absolute.split("/").filter((s) => s !== "" && s !== ".");
+  const path = `/${segments.join("/")}`;
+  if (segments.includes("..") || path === "/" || path === WORKDIR) {
+    throw new QpdfError("FAILED", `invalid file path: ${name}`);
+  }
   return path;
 }
 
