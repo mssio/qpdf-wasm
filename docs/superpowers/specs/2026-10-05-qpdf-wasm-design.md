@@ -2,7 +2,8 @@
 
 - **Date:** 2026-10-05
 - **Status:** Draft for review
-- **Package:** `@mssio/qpdf-wasm` (npm), open source on GitHub
+- **Package:** `@mssio/qpdf-wasm` (npm)
+- **Repository:** https://github.com/mssio/qpdf-wasm (git remote `origin`)
 
 ## 1. Goal
 
@@ -154,7 +155,7 @@ Password and invalid-PDF detection match qpdf's stderr messages; the exact patte
 
 ## 5. Packaging
 
-- `package.json`: `"name": "@mssio/qpdf-wasm"`, `"type": "module"`, `"exports"` with `types` + `import` conditions for `.` (the worker is reached internally via `new URL`, not an export), `"sideEffects": false`, `"files": ["dist", "LICENSE", "THIRD_PARTY_NOTICES.md"]`, `"publishConfig": { "access": "public", "provenance": true }`.
+- `package.json`: `"name": "@mssio/qpdf-wasm"`, `"type": "module"`, `"exports"` with `types` + `import` conditions for `.` (the worker is reached internally via `new URL`, not an export), `"sideEffects": false`, `"repository": { "type": "git", "url": "git+https://github.com/mssio/qpdf-wasm.git" }`, `"homepage"` and `"bugs"` pointing at the GitHub repo, `"files": ["dist", "LICENSE", "THIRD_PARTY_NOTICES.md"]`, `"publishConfig": { "access": "public", "provenance": true }`.
 - `dist/` contains the compiled TS (ESM + `.d.ts`), `dist/wasm/qpdf.mjs`, `dist/wasm/qpdf.wasm`, `dist/licenses/`.
 - Worker is created with `new Worker(new URL("./worker.js", import.meta.url), { type: "module" })` and the wasm is located with `new URL("./wasm/qpdf.wasm", import.meta.url)` — the patterns Vite, webpack 5, Rollup, esbuild and Next.js resolve without configuration.
 - Node ≥ 20 is supported via inline mode (§4.2 default when global `Worker` is undefined).
@@ -187,6 +188,45 @@ All levels run on every PR, on upgrade PRs, and before publish.
 3. **Browser (Playwright: Chromium, Firefox, WebKit):** a Vite fixture app and a webpack 5 fixture app install the packed tarball (`npm pack`) and run merge + encrypt in the worker; asserts the main thread stays responsive (a `requestAnimationFrame` counter keeps ticking during a job).
 4. **Package checks:** `publint`, `@arethetypeswrong/cli`, tarball contents include `LICENSE`, `THIRD_PARTY_NOTICES.md`, `dist/wasm/qpdf.wasm`; gzip size of `qpdf.wasm` reported and the job warns (non-blocking) if it grew >10% versus the latest published version.
 
-## 9. Open items to resolve during implementation
+## 9. Documentation
+
+Both files are deliverables with the same weight as code: CI does not enforce prose, but the release checklist (§7) requires that README examples were run against the release build, and every PR that changes the API, build, or workflow updates them in the same PR.
+
+### 9.1 `README.md` (audience: developers using the package)
+
+1. **Header:** name, one-sentence pitch, npm version / CI / license badges, bundled qpdf version.
+2. **Why:** full qpdf in the browser, no server, runs in a worker, ~705 KB gzip (measured value updated each release).
+3. **Install + 10-line quick start:** `createQpdf()` → `merge()` → download the result as a Blob.
+4. **Recipes** (each a complete, copy-pasteable snippet that is executed by the Node integration tests, so examples cannot rot): merge, split, select pages, rotate, encrypt, decrypt with password prompt on `INVALID_PASSWORD`, linearize, compress, info, and `run()` with a raw qpdf command.
+5. **Framework usage:** short snippets for React, Vue, Svelte, and vanilla, showing creating one instance and calling `terminate()` on teardown.
+6. **API reference:** every export, option, and error code from §4.2 and §4.4, plus the `run()` file semantics and the transferable-buffer caveat.
+7. **Bundlers & hosting:** zero-config for Vite/webpack 5/Rollup/esbuild/Next.js; `wasmUrl` for CDNs; required MIME type `application/wasm`; CSP note (`wasm-unsafe-eval`, `worker-src`).
+8. **Node usage** (inline mode).
+9. **Performance & limits:** measured timings and memory (§10), files are held in memory.
+10. **Versioning:** independent semver, how to find the bundled qpdf version, upgrade cadence.
+11. **Building from source:** prerequisites (Docker, Node), `git clone --recursive`, `npm run build:wasm`, `npm run build`, `npm test`.
+12. **License & credits:** Apache-2.0, link to `THIRD_PARTY_NOTICES.md`, the IJG sentence, qpdf attribution, statement that this is not an official qpdf project.
+
+### 9.2 `AGENTS.md` (audience: future coding agents and new maintainers)
+
+Concise, imperative, kept current. Created in the first implementation task and updated as the project grows. Sections:
+
+1. **What this is:** one paragraph plus a link to this spec as the source of design truth.
+2. **Repo map:** each top-level directory and key file with its single responsibility (mirrors §4.1).
+3. **Commands:** exact commands for wasm build, TS build, each test level, lint, pack, and what each needs (Docker or not).
+4. **Hard rules:**
+   - Never edit `vendor/qpdf`; use `build/patches/` per §3.1.
+   - Never bump qpdf and Emscripten in the same PR.
+   - Typed helpers go through qpdf job JSON, never qpdf C++ internals.
+   - One fresh module instance per job; never reuse an instance (spike defect, §2).
+   - Every API change updates README, `.d.ts`, tests, and CHANGELOG in the same PR.
+   - Never commit build output (`dist/`, `out/`) or publish from a local machine.
+5. **How to:** upgrade qpdf (what the bot PR does, what to check when it fails); upgrade Emscripten; add a typed helper (job-JSON builder + unit test + integration test + README recipe); cut a release.
+6. **Known gotchas:** qpdf global state, exit code 3 means success, `Blob` inputs need `arrayBuffer()`, detached buffers after transfer, Emscripten `-G "Unix Makefiles"` (no Ninja in the image), qpdf's own CMake variable names for zlib/libjpeg.
+7. **Verification before claiming done:** which test levels must pass for which kind of change.
+
+A `CLAUDE.md` containing only `@AGENTS.md` is added so Claude Code loads the same file.
+
+## 10. Open items to resolve during implementation
 
 None blocking. Two measurements will be recorded in the README once available: browser timings on a ~10 MB PDF, and peak memory for merging ten ~10 MB PDFs.
