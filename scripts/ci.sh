@@ -5,11 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 npm run build:wasm
-if ! git diff --quiet -- THIRD_PARTY_NOTICES.md; then
-  echo "THIRD_PARTY_NOTICES.md changed after build:wasm; commit the regenerated file." >&2
-  git diff --stat -- THIRD_PARTY_NOTICES.md >&2
-  exit 1
-fi
+bash scripts/check-generated.sh
 npm run typecheck
 npm test
 npm run build

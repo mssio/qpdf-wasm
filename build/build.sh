@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Runs INSIDE the emscripten/emsdk container (see scripts/build-wasm.sh); the repo is mounted at /work.
-# Builds vendor/qpdf (unmodified) to src/wasm/ and regenerates THIRD_PARTY_NOTICES.md.
+# Builds vendor/qpdf (unmodified) to src/wasm/ and regenerates THIRD_PARTY_NOTICES.md and README.md's
+# qpdf version line.
 set -euo pipefail
 cd /work
 
@@ -48,8 +49,16 @@ export const emscriptenVersion = "$EMSCRIPTEN_VERSION";
 EOF2
 
 # Third-party notices, generated from the exact sources that were compiled.
-ZLIB_LICENSE=$(find "$CACHE/ports/zlib" -maxdepth 2 -name LICENSE | head -1)
-JPEG_README=$(find "$CACHE/ports/libjpeg" -maxdepth 2 -name README | head -1)
+require_file() { [ -n "$2" ] && [ -f "$2" ] || { echo "build.sh: $1 not found${2:+ at $2}; cannot generate THIRD_PARTY_NOTICES.md" >&2; exit 1; }; }
+EMSCRIPTEN_ROOT=$(dirname "$(command -v emcc)")
+ZLIB_LICENSE=$(find "$CACHE/ports/zlib" -maxdepth 2 -name LICENSE 2>/dev/null | head -1 || true)
+JPEG_README=$(find "$CACHE/ports/libjpeg" -maxdepth 2 -name README 2>/dev/null | head -1 || true)
+EMSCRIPTEN_LICENSE="$EMSCRIPTEN_ROOT/LICENSE"
+MUSL_COPYRIGHT="$EMSCRIPTEN_ROOT/system/lib/libc/musl/COPYRIGHT"
+require_file "zlib LICENSE" "$ZLIB_LICENSE"
+require_file "libjpeg README" "$JPEG_README"
+require_file "Emscripten LICENSE" "$EMSCRIPTEN_LICENSE"
+require_file "musl COPYRIGHT" "$MUSL_COPYRIGHT"
 ZLIB_DIR=$(basename "$(dirname "$ZLIB_LICENSE")")
 JPEG_DIR=$(basename "$(dirname "$JPEG_README")")
 {
@@ -71,10 +80,23 @@ JPEG_DIR=$(basename "$(dirname "$JPEG_README")")
   echo "## zlib ($ZLIB_DIR, via Emscripten $EMSCRIPTEN_VERSION ports)"
   echo; echo '````text'; cat "$ZLIB_LICENSE"; echo '````'; echo
   echo "## libjpeg ($JPEG_DIR, Independent JPEG Group, via Emscripten $EMSCRIPTEN_VERSION ports)"
-  echo; echo '````text'; cat "$JPEG_README"; echo '````'
+  echo; echo '````text'; cat "$JPEG_README"; echo '````'; echo
+  echo "## Emscripten $EMSCRIPTEN_VERSION"
+  echo
+  echo "The JavaScript glue (\`qpdf.mjs\`) and the system libraries linked into \`qpdf.wasm\` come from Emscripten."
+  echo; echo '````text'; cat "$EMSCRIPTEN_LICENSE"; echo '````'; echo
+  echo "## musl libc (via Emscripten $EMSCRIPTEN_VERSION)"
+  echo; echo '````text'; cat "$MUSL_COPYRIGHT"; echo '````'; echo
+  echo "## libc++ and libc++abi (LLVM, via Emscripten $EMSCRIPTEN_VERSION)"
+  echo
+  echo "Licensed under Apache-2.0 WITH LLVM-exception, which does not require attribution for compiled code."
 } > THIRD_PARTY_NOTICES.md
 
+# README states the bundled qpdf version between stable markers (checked by test/node/wasm-build.test.ts).
+grep -q '<!-- qpdf-version -->.*<!-- /qpdf-version -->' README.md || { echo "build.sh: qpdf-version marker missing from README.md" >&2; exit 1; }
+sed -i -E "s|<!-- qpdf-version -->.*<!-- /qpdf-version -->|<!-- qpdf-version -->Contains qpdf $QPDF_VERSION, built unmodified for WebAssembly.<!-- /qpdf-version -->|" README.md
+
 if [ -n "${HOST_UID:-}" ]; then
-  chown -R "$HOST_UID:$HOST_GID" "$DEST" out THIRD_PARTY_NOTICES.md
+  chown -R "$HOST_UID:$HOST_GID" "$DEST" out THIRD_PARTY_NOTICES.md README.md
 fi
 echo "Built qpdf $QPDF_VERSION with Emscripten $EMSCRIPTEN_VERSION"

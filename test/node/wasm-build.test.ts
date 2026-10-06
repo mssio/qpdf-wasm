@@ -33,11 +33,22 @@ describe("wasm build", () => {
     expect(out[0]).toBe(`qpdf version ${qpdfVersion}`);
   });
 
-  it("ships third-party notices for qpdf, zlib and libjpeg", () => {
+  it("ships third-party notices for qpdf, zlib, libjpeg, Emscripten, musl and libc++", () => {
     const notices = readFileSync(new URL("../../THIRD_PARTY_NOTICES.md", import.meta.url), "utf8");
     expect(notices).toContain(`qpdf ${qpdfVersion}`);
     expect(notices).toContain("Apache License");
     expect(notices).toContain("Jean-loup Gailly and Mark Adler");
     expect(notices).toContain("Independent JPEG Group");
+    expect(notices).toContain(`## Emscripten ${emscriptenVersion}`);
+    expect(notices).toContain("Emscripten authors");
+    expect(notices).toContain("## musl libc");
+    expect(notices).toContain("Rich Felker");
+    expect(notices).toContain("Apache-2.0 WITH LLVM-exception");
+  });
+
+  it("states the bundled qpdf version in the README", () => {
+    const readme = readFileSync(new URL("../../README.md", import.meta.url), "utf8");
+    const marked = /<!-- qpdf-version -->(.*?)<!-- \/qpdf-version -->/.exec(readme);
+    expect(marked?.[1]).toBe(`Contains qpdf ${qpdfVersion}, built unmodified for WebAssembly.`);
   });
 });

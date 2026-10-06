@@ -8,7 +8,8 @@ with no server and no native dependencies.
 [![CI](https://github.com/mssio/qpdf-wasm/actions/workflows/ci.yml/badge.svg)](https://github.com/mssio/qpdf-wasm/actions/workflows/ci.yml)
 [![license](https://img.shields.io/npm/l/@mssio/qpdf-wasm)](./LICENSE)
 
-Bundled qpdf version: see [CHANGELOG](./CHANGELOG.md) or `import { qpdfVersion } from "@mssio/qpdf-wasm"`.
+<!-- qpdf-version -->Contains qpdf 12.4.2, built unmodified for WebAssembly.<!-- /qpdf-version -->
+At runtime: `import { qpdfVersion } from "@mssio/qpdf-wasm"`.
 
 > This is an independent project, not an official qpdf release. qpdf is built **unmodified** from its
 > upstream source.
