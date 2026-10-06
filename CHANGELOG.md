@@ -5,4 +5,4 @@ each entry states the bundled qpdf version.
 
 ## Unreleased
 
-- Initial release. Bundles qpdf 12.4.2 (unmodified), built with Emscripten 6.0.11.
+- Initial release. Bundles qpdf 12.4.2 (unmodified), built with Emscripten 6.0.11. TypeScript users need TypeScript ≥ 5.7.

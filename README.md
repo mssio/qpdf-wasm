@@ -28,6 +28,9 @@ At runtime: `import { qpdfVersion } from "@mssio/qpdf-wasm"`.
 npm install @mssio/qpdf-wasm
 ```
 
+TypeScript users need TypeScript ≥ 5.7: outputs are typed `Uint8Array<ArrayBuffer>`, so `new Blob([output])`
+type-checks.
+
 ## Quick start
 
 ```js
@@ -236,7 +239,7 @@ instance and reuse it (see below).
 
 Create one instance for the app (or a component's lifetime) and call `terminate()` when done. With SSR
 frameworks such as Next.js, Nuxt or SvelteKit, create the instance on the client only (inside `useEffect`,
-`onBeforeMount` or `onMount`).
+`onMounted` or `onMount`, as below).
 
 **React**
 
@@ -264,15 +267,19 @@ export function useQpdf() {
 **Vue**
 
 ```js
-import { onBeforeUnmount, shallowRef } from "vue";
+import { onBeforeUnmount, onMounted, shallowRef } from "vue";
 import { createQpdf } from "@mssio/qpdf-wasm";
 
 export function useQpdf() {
   const qpdf = shallowRef(null);
-  const ready = createQpdf().then((q) => (qpdf.value = q));
-  ready.catch((error) => console.error("qpdf failed to load", error));
-  onBeforeUnmount(() => ready.then((q) => q.terminate(), () => {}));
-  return qpdf;
+  let ready;
+  onMounted(() => {
+    // Client only: onMounted never runs during SSR.
+    ready = createQpdf().then((q) => (qpdf.value = q));
+    ready.catch((error) => console.error("qpdf failed to load", error));
+  });
+  onBeforeUnmount(() => ready?.then((q) => q.terminate(), () => {}));
+  return qpdf; // null until ready
 }
 ```
 
@@ -280,11 +287,14 @@ export function useQpdf() {
 
 ```svelte
 <script>
-  import { onDestroy } from "svelte";
+  import { onMount } from "svelte";
   import { createQpdf } from "@mssio/qpdf-wasm";
-  const ready = createQpdf();
-  ready.catch((error) => console.error("qpdf failed to load", error));
-  onDestroy(() => ready.then((q) => q.terminate(), () => {}));
+  let ready; // created on the client only: onMount never runs during SSR
+  onMount(() => {
+    ready = createQpdf();
+    ready.catch((error) => console.error("qpdf failed to load", error));
+    return () => ready.then((q) => q.terminate(), () => {});
+  });
   async function merge(files) {
     const qpdf = await ready;
     return (await qpdf.merge([...files])).output;
@@ -338,7 +348,7 @@ Helpers reject with `QpdfError { code, message, exitCode, stderr }`:
 |---|---|
 | `INVALID_PASSWORD` | Wrong or missing password for an encrypted PDF |
 | `INVALID_PDF` | The input is not a readable PDF |
-| `FAILED` | Any other qpdf failure (`message` is qpdf's reason), a crashed worker, or `qpdf.wasm` failing to load |
+| `FAILED` | Any other qpdf failure (`message` is qpdf's reason); qpdf crashing (`message` starts with `qpdf crashed:`) or its worker dying; `qpdf.wasm` or the worker script failing to load; `inline: false` where Web Workers don't exist |
 | `TERMINATED` | `terminate()` was called |
 
 Invalid arguments (e.g. `merge([])`, `compress(x, { level: 12 })`) throw `RangeError`/`TypeError`.
@@ -376,11 +386,18 @@ const { output } = await qpdf.linearize(await readFile("in.pdf"));
 await writeFile("out.pdf", output);
 ```
 
+**Node vs browser.** Inline mode (Node, or `inline: true`) never transfers, so it never detaches your inputs,
+and `terminate()` cannot cancel a job that is already running (it only rejects later calls). Code that runs in
+both should still pass `bytes.slice()` whenever it reuses the bytes after a call.
+
 ## Performance & limits
 
 - `qpdf.wasm` is compiled once per worker and cached. In our tests, starting a job takes a few milliseconds
   after that, and small test PDFs (~30 KB) process in tens of milliseconds; large files scale with size.
-- Files are held in memory (in the worker), so peak memory is roughly input size + output size.
+- Files are held in memory (in the worker). Peak memory can be much more than input + output: merging 1,500
+  small files into a 34 MB output peaked around 600 MB RSS in Node. Each job's wasm heap is capped at 2 GB.
+- Inline mode (Node) runs each job synchronously on the calling thread, so it blocks the Node event loop for
+  the duration of the job. Run it in a `worker_threads` worker if your server must stay responsive.
 
 ## Versioning
 
