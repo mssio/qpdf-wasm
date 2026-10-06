@@ -1,0 +1,89 @@
+import { QpdfError } from "./errors.js";
+import type { JobSpec, RunResult } from "./types.js";
+import createQpdfModule, { type QpdfModule } from "./wasm/qpdf.mjs";
+
+/** Working directory inside each module instance; relative job paths resolve here. */
+export const WORKDIR = "/work";
+
+/**
+ * Runs one qpdf job in a brand-new module instance. qpdf keeps process-global state
+ * (e.g. its logger), so an instance must never be reused for a second job.
+ */
+export async function runJob(wasm: WebAssembly.Module, spec: JobSpec): Promise<RunResult> {
+  const paths = Object.keys(spec.files).map(resolvePath);
+  const stdout: string[] = [];
+  const stderr: string[] = [];
+  const mod = await instantiate(wasm, stdout, stderr);
+
+  mod.FS.mkdir(WORKDIR);
+  mod.FS.chdir(WORKDIR);
+  const inputs = new Set<string>();
+  Object.values(spec.files).forEach((data, index) => {
+    const path = paths[index]!;
+    mkdirp(mod, path.slice(0, path.lastIndexOf("/")));
+    mod.FS.writeFile(path, data);
+    inputs.add(path);
+  });
+
+  const exitCode = callMain(mod, spec.args);
+
+  const files: Record<string, Uint8Array> = {};
+  for (const path of listFiles(mod, WORKDIR)) {
+    if (!inputs.has(path)) files[path.slice(WORKDIR.length + 1)] = mod.FS.readFile(path);
+  }
+  return { exitCode, stdout: stdout.join("\n"), stderr: stderr.join("\n"), files };
+}
+
+function instantiate(wasm: WebAssembly.Module, stdout: string[], stderr: string[]): Promise<QpdfModule> {
+  let fail!: (error: unknown) => void;
+  const failed = new Promise<never>((_, reject) => {
+    fail = reject;
+  });
+  const created = createQpdfModule({
+    thisProgram: "qpdf",
+    print: (line) => stdout.push(line),
+    printErr: (line) => stderr.push(line),
+    // Required: the glue is built for web/worker only and cannot load the wasm itself in Node.
+    instantiateWasm(imports, ready) {
+      WebAssembly.instantiate(wasm, imports).then((instance) => ready(instance, wasm), fail);
+      return {};
+    },
+  });
+  return Promise.race([created, failed]);
+}
+
+function callMain(mod: QpdfModule, args: string[]): number {
+  try {
+    return mod.callMain(args) ?? 0;
+  } catch (error) {
+    // qpdf calls exit(); Emscripten surfaces that as a thrown ExitStatus { status }.
+    if (typeof error === "object" && error !== null && "status" in error && typeof error.status === "number") {
+      return error.status;
+    }
+    throw error;
+  }
+}
+
+function resolvePath(name: string): string {
+  const path = name.startsWith("/") ? name : `${WORKDIR}/${name}`;
+  if (path.split("/").includes("..")) throw new QpdfError("FAILED", `invalid file path: ${name}`);
+  return path;
+}
+
+function mkdirp(mod: QpdfModule, dir: string): void {
+  let current = "";
+  for (const part of dir.split("/").filter(Boolean)) {
+    current += `/${part}`;
+    if (!mod.FS.analyzePath(current).exists) mod.FS.mkdir(current);
+  }
+}
+
+function* listFiles(mod: QpdfModule, dir: string): Generator<string> {
+  for (const name of mod.FS.readdir(dir)) {
+    if (name === "." || name === "..") continue;
+    const path = `${dir}/${name}`;
+    const { mode } = mod.FS.stat(path);
+    if (mod.FS.isDir(mode)) yield* listFiles(mod, path);
+    else if (mod.FS.isFile(mode)) yield path;
+  }
+}
