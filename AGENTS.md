@@ -87,6 +87,17 @@ npm run build:wasm && bash scripts/ci.sh
 
 Separate PR. Note the size delta in the PR.
 
+### Dependency updates
+
+Dependabot (`.github/dependabot.yml`) opens grouped PRs every Monday:
+- **npm, root:** minor and patch updates are grouped; majors come as their own group.
+- **npm, browser test fixtures:** grouped. `@mssio/qpdf-wasm` is ignored there, because it is the packed tarball.
+- **GitHub Actions:** grouped. Dependabot updates the commit SHA and the `# vX.Y.Z` comment together.
+
+`@types/node` majors are ignored on purpose: they must match Node 24 (`engines`, `.nvmrc`, `node-version`). Bump them by hand together with the runtime. The Emscripten image digest is not covered; see "Upgrade Emscripten". Review major updates individually, and merge only green PRs.
+
+If Dependabot reports errors for the fixture directories (their `file:` dependency only exists during tests), remove that entry from `dependabot.yml` and bump the exact fixture pins (`vite`, `webpack`, `webpack-cli`) by hand when you update dependencies.
+
 ### Add a typed helper
 
 1. `src/jobs/<name>.ts`: pure builder returning a `JobSpec` via `jobSpec()`, plus a unit test in `test/unit/jobs.test.ts`. Validate the job JSON against `vendor/qpdf/libqpdf/qpdf/auto_job_schema.hh`.
