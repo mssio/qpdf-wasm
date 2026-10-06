@@ -19,7 +19,7 @@ Release `@mssio/qpdf-wasm@1.0.0` with a stable-API promise. Before that:
 3. Every GitHub Action is pinned to a full commit SHA, and the Emscripten image is pinned by digest.
 4. Dependabot opens grouped weekly PRs for npm and for GitHub Actions.
 5. The release workflow refuses tags that are not on `main`, and CI verifies npm registry signatures.
-6. `package.json` and the CHANGELOG say `1.0.0`. A clean-tree `bash scripts/ci.sh` passes, including 9/9 browser tests. The implementation creates **no** tag. The maintainer tags the merge commit on `main` (§6), because §5.4 rejects tags that are not on `main`.
+6. `package.json` and the CHANGELOG say `1.0.0`. A clean-tree `bash scripts/ci.sh` passes, including 9/9 browser tests. The implementation creates **no** tag on the branch. Claude creates and pushes `v1.0.0` on `main` once the merged `main` is on GitHub and green (§6), because §5.4 rejects tags that are not on `main`.
 
 ### Non-goals
 
@@ -165,11 +165,16 @@ AGENTS.md gets a "Repository settings" section, to set once on GitHub:
 - Allow the maintainer to bypass in an emergency.
 - Settings → Actions → General: workflow permissions "Read repository contents" by default. The workflows already request what they need per job.
 
-## 6. Release procedure for 1.0.0 (maintainer)
+## 6. Release procedure for 1.0.0
 
-1. Merge `chore/v1-hardening` into `main` after CI passes. If branch protection is on, do it through a PR.
-2. Trusted publishing must already be configured on npmjs.com, and `NPM_TOKEN` deleted. 1.0.0 is the first release published through trusted publishing (OIDC).
-3. On updated `main`, tag the release commit and push the tag:
+The maintainer asked Claude to create and push the `v1.0.0` tag after `main` is pushed (2026-10-06). Pushing the tag publishes to npm.
+
+1. **Maintainer:** merge `chore/v1-hardening` into `main` and push `main`. If branch protection is on, do it through a PR.
+2. **Claude, before tagging, checks and stops if any check fails:**
+   - `origin/main` contains the merged work and its `package.json` version is `1.0.0`;
+   - the CI run for that `main` commit has passed (`gh run list --branch main`);
+   - the maintainer confirms that trusted publishing is configured on npmjs.com and `NPM_TOKEN` is deleted. Claude can't see npm settings. 1.0.0 is the first release published through trusted publishing (OIDC).
+3. **Claude:** on that `main` commit, tag the release and push the tag:
 
    ```sh
    git tag -a v1.0.0 -m "release: v1.0.0"
@@ -177,7 +182,7 @@ AGENTS.md gets a "Repository settings" section, to set once on GitHub:
    ```
 
    The release workflow checks that the tag matches `package.json` (`1.0.0`) and is on `main`.
-4. If the publish job fails with an auth error, the trusted-publisher settings are the first thing to check:
+4. **Claude:** watch the Release run to the end and confirm `npm view @mssio/qpdf-wasm version` shows `1.0.0`. If the publish job fails with an auth error, report it; the trusted-publisher settings are the first thing to check:
    - `mssio` / `qpdf-wasm` / `release.yml`;
    - environment empty.
 
