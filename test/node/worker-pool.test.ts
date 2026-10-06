@@ -104,4 +104,19 @@ describe("worker pool", () => {
     expect((err as QpdfError).code).toBe("FAILED");
     expect((err as QpdfError).message).toContain("missing.wasm");
   });
+
+  it("explains a worker script that could not be loaded (error event without a message)", async () => {
+    class UnloadableWorker extends FakeWorker {
+      override postMessage(): void {
+        queueMicrotask(() => this.onerror?.({ type: "error" }));
+      }
+    }
+    const workerUrl = "https://app.example/assets/worker-abc123.js";
+    const err = await createWorkerPool({ size: 1, wasmUrl, workerUrl, spawn: () => new UnloadableWorker() }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(QpdfError);
+    expect((err as QpdfError).code).toBe("FAILED");
+    expect((err as QpdfError).message).toBe(
+      `qpdf worker failed to start (could not load ${workerUrl}); check that the worker script is served and allowed by your Content-Security-Policy (worker-src)`,
+    );
+  });
 });

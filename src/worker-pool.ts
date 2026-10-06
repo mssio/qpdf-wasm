@@ -15,6 +15,8 @@ export interface WorkerLike {
 export interface WorkerPoolOptions {
   size: number;
   wasmUrl: string;
+  /** URL of the worker script, used only in error messages (spawn() loads it). */
+  workerUrl?: string;
   spawn: () => WorkerLike;
 }
 
@@ -46,6 +48,20 @@ export async function createWorkerPool(options: WorkerPoolOptions): Promise<Exec
         removeSlot(slot);
         reject(new QpdfError("FAILED", `qpdf worker failed to start: ${reason}`));
       };
+      // An error event without a message before "ready" means the script itself did not load
+      // (404, wrong MIME type, or blocked by CSP). Browsers do not say which, so name the likely causes.
+      const failLoad = (event: unknown) => {
+        const message = messageOf(event);
+        if (message) return failStart(message);
+        removeSlot(slot);
+        reject(
+          new QpdfError(
+            "FAILED",
+            `qpdf worker failed to start (could not load ${options.workerUrl ?? "the worker script"}); ` +
+              "check that the worker script is served and allowed by your Content-Security-Policy (worker-src)",
+          ),
+        );
+      };
       slot.worker.onmessage = ({ data }) => {
         if (data.type === "ready") {
           slot.ready = true;
@@ -61,7 +77,7 @@ export async function createWorkerPool(options: WorkerPoolOptions): Promise<Exec
       };
       slot.worker.onerror = (event) => {
         if (slot.ready) crash(slot, event);
-        else failStart(describe(event));
+        else failLoad(event);
       };
       slot.worker.onmessageerror = (event) => {
         if (slot.ready) crash(slot, event);
@@ -151,9 +167,13 @@ export async function createWorkerPool(options: WorkerPoolOptions): Promise<Exec
   };
 }
 
-function describe(event: unknown): string {
+function messageOf(event: unknown): string | undefined {
   if (typeof event === "object" && event !== null && "message" in event && typeof event.message === "string" && event.message) {
     return event.message;
   }
-  return "unknown worker error";
+  return undefined;
+}
+
+function describe(event: unknown): string {
+  return messageOf(event) ?? "unknown worker error";
 }

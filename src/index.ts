@@ -37,8 +37,20 @@ export async function createQpdf(options: CreateQpdfOptions = {}): Promise<Qpdf>
   const pool = await createWorkerPool({
     size,
     wasmUrl: wasmUrl.href,
+    workerUrl: workerScriptUrl(),
     // Keep this expression literal: bundlers detect `new Worker(new URL(..., import.meta.url))`.
     spawn: () => new Worker(new URL("./worker.js", import.meta.url), { type: "module" }) as unknown as WorkerLike,
   });
   return createQpdfApi(pool);
+}
+
+/**
+ * Where the worker script is expected, for error messages only (spawn() loads the real one, which a
+ * bundler may have renamed). Deliberately not the literal `new URL("./worker.js", import.meta.url)`:
+ * Vite would inline worker.js as a data: URL and webpack would emit it again as an asset.
+ */
+function workerScriptUrl(): string | undefined {
+  const base = import.meta.url;
+  // webpack replaces import.meta.url with the build machine's file: path, which the browser never loads.
+  return base.startsWith("file:") ? undefined : new URL("./worker.js", base).href;
 }
