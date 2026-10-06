@@ -16,7 +16,7 @@ jobs:
     steps:
       # The token is not stored in .git/config: dependency installs and the build run without it.
       # Only the push step below receives it.
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
           persist-credentials: false
@@ -44,7 +44,7 @@ jobs:
         run: |
           git -C vendor/qpdf fetch --depth 1 origin "refs/tags/$LATEST:refs/tags/$LATEST"
           git -C vendor/qpdf checkout "$LATEST"
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         if: steps.versions.outputs.skip != 'true'
         with:
           node-version: 24
@@ -54,6 +54,7 @@ jobs:
         id: verify
         run: |
           npm ci --ignore-scripts
+          npm audit signatures
           npx playwright install --with-deps chromium firefox webkit
           set +e
           npm run build:wasm > ci.log 2>&1

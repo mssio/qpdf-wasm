@@ -37,3 +37,20 @@ describe("Node version alignment", () => {
     expect(pkg.devDependencies["@types/node"]).toMatch(/^\^24\./);
   });
 });
+
+describe("GitHub Actions pinning", () => {
+  const PINNED = /^[\w.-]+\/[\w.-]+(?:\/[\w./-]+)?@[0-9a-f]{40}$/;
+
+  it("pins every action to a full commit SHA with a version comment", () => {
+    let count = 0;
+    for (const file of workflowFiles()) {
+      for (const match of readText(file).matchAll(/^\s*(?:-\s*)?uses:\s*(\S+)(.*)$/gm)) {
+        count++;
+        const [line, ref = "", rest = ""] = match;
+        expect(ref, `${file}: ${line.trim()} must be owner/repo@<40-hex sha>`).toMatch(PINNED);
+        expect(rest, `${file}: ${line.trim()} needs a "# vX.Y.Z" comment`).toMatch(/#\s*v\d+(\.\d+){0,2}\b/);
+      }
+    }
+    expect(count).toBeGreaterThan(0);
+  });
+});
