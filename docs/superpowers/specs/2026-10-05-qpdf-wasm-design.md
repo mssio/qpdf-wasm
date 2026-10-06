@@ -155,7 +155,7 @@ Password and invalid-PDF detection match qpdf's stderr messages; the exact patte
 
 ## 5. Packaging
 
-- `package.json`: `"name": "@mssio/qpdf-wasm"`, `"type": "module"`, `"exports"` with `types` + `import` conditions for `.` (the worker is reached internally via `new URL`, not an export), `"sideEffects": false`, `"repository": { "type": "git", "url": "git+https://github.com/mssio/qpdf-wasm.git" }`, `"homepage"` and `"bugs"` pointing at the GitHub repo, `"files": ["dist", "LICENSE", "THIRD_PARTY_NOTICES.md"]`, `"publishConfig": { "access": "public", "provenance": true }`.
+- `package.json`: `"name": "@mssio/qpdf-wasm"`, `"type": "module"`, `"exports"` with `types` + `import` conditions for `.` (the worker is reached internally via `new URL`, not an export), `"sideEffects": false`, `"repository": { "type": "git", "url": "git+https://github.com/mssio/qpdf-wasm.git" }`, `"homepage"` and `"bugs"` pointing at the GitHub repo, `"files": ["dist", "LICENSE", "THIRD_PARTY_NOTICES.md"]`, `"publishConfig": { "access": "public" }` (provenance is automatic under trusted publishing).
 - `dist/` contains the compiled TS (ESM + `.d.ts`), `dist/wasm/qpdf.mjs`, `dist/wasm/qpdf.wasm`, `dist/licenses/`.
 - Worker is created with `new Worker(new URL("./worker.js", import.meta.url), { type: "module" })` and the wasm is located with `new URL("./wasm/qpdf.wasm", import.meta.url)` — the patterns Vite, webpack 5, Rollup, esbuild and Next.js resolve without configuration.
 - Node ≥ 20 is supported via inline mode (§4.2 default when global `Worker` is undefined).
@@ -172,7 +172,8 @@ Password and invalid-PDF detection match qpdf's stderr messages; the exact patte
 - **Independent semver.** qpdf version bump → minor release. JS API break → major. Packaging/bug fixes → patch. `qpdfVersion` export and README line identify the bundled qpdf. CHANGELOG records each qpdf bump.
 - **Upgrade automation** (`.github/workflows/qpdf-update.yml`, weekly cron + manual dispatch): query latest qpdf GitHub release; if newer than the submodule tag, bump the submodule, run the full CI suite, and open a PR titled `chore: qpdf vX.Y.Z` with the release-notes link and the gzip size delta.
 - **Emscripten upgrades** are a separate, manual PR changing `build/emsdk-version`, never bundled with a qpdf bump.
-- **Release** (`.github/workflows/release.yml`, on `v*` tag push): build wasm in Docker, build TS, run all tests, `npm publish` with provenance using an npm automation token stored as a repository secret. The `.wasm` is never built on a developer machine for release.
+- **Release** (`.github/workflows/release.yml`, on `v*` tag push, GitHub-hosted `ubuntu-latest`, Node 24, `permissions: { id-token: write, contents: read }`, no package-manager cache): build wasm in Docker, build TS, run all tests, `npm publish --access public`. The `.wasm` is never built on a developer machine for release.
+- **npm authentication:** npm trusted publishing (OIDC) — no long-lived token. Provenance is generated automatically (requires the GitHub repo to be public). Because a trusted publisher can only be attached once the package exists, the very first release may use a short-lived (≤7-day) granular token in the `NPM_TOKEN` secret; the workflow passes `NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}`, which is empty once the secret is deleted, at which point OIDC is used. After the first publish: configure the trusted publisher (`mssio` / `qpdf-wasm` / `release.yml`), optionally set "require 2FA and disallow tokens", delete the token and the secret. These maintainer steps are documented in AGENTS.md (§9.2 "cut a release").
 
 ## 8. Testing
 
