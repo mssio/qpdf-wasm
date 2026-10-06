@@ -190,7 +190,7 @@ All levels run on every PR, on upgrade PRs, and before publish.
 
 ## 9. Documentation
 
-Both files are deliverables with the same weight as code: CI does not enforce prose, but the release checklist (§7) requires that README examples were run against the release build, and every PR that changes the API, build, or workflow updates them in the same PR.
+Both files are deliverables with the same weight as code. README recipes are executed by the Node integration tests (§9.1 item 4), so they are verified on every PR and release. Every PR that changes the API, build, or workflow updates README and AGENTS.md in the same PR.
 
 ### 9.1 `README.md` (audience: developers using the package)
 
