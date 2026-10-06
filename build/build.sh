@@ -24,6 +24,10 @@ CACHE=$(em-config CACHE)
 SYSROOT="$CACHE/sysroot"
 LIBDIR="$SYSROOT/lib/wasm32-emscripten"
 
+# Stack: qpdf recurses on nested PDF objects; Emscripten's default 64 KB stack overflowed into static
+# data (crashes, corruption, endless loops). 8 MB plus --stack-first (the stack sits below static data,
+# so an overflow traps instead of corrupting memory). -sSTACK_FIRST is internal in Emscripten 6.0.11;
+# -Wl,--stack-first is the supported switch (tools/link.py).
 emcmake cmake -S "$SRC" -B "$OUT" -G "Unix Makefiles" \
   -DCMAKE_BUILD_TYPE=Release \
   -DBUILD_SHARED_LIBS=OFF -DBUILD_STATIC_LIBS=ON -DBUILD_DOC=OFF \
@@ -32,7 +36,7 @@ emcmake cmake -S "$SRC" -B "$OUT" -G "Unix Makefiles" \
   -DLIBJPEG_H_PATH="$SYSROOT/include" -DLIBJPEG_LIB_PATH="$LIBDIR/libjpeg.a" \
   -DCMAKE_C_FLAGS="-O3 -fwasm-exceptions" \
   -DCMAKE_CXX_FLAGS="-O3 -fwasm-exceptions" \
-  -DCMAKE_EXE_LINKER_FLAGS="-fwasm-exceptions -sALLOW_MEMORY_GROWTH=1 -sMODULARIZE=1 -sEXPORT_ES6=1 -sEXPORT_NAME=createQpdfModule -sINVOKE_RUN=0 -sEXIT_RUNTIME=0 -sENVIRONMENT=web,worker -sEXPORTED_RUNTIME_METHODS=FS,callMain"
+  -DCMAKE_EXE_LINKER_FLAGS="-fwasm-exceptions -sSTACK_SIZE=8MB -Wl,--stack-first -sALLOW_MEMORY_GROWTH=1 -sMODULARIZE=1 -sEXPORT_ES6=1 -sEXPORT_NAME=createQpdfModule -sINVOKE_RUN=0 -sEXIT_RUNTIME=0 -sENVIRONMENT=web,worker -sEXPORTED_RUNTIME_METHODS=FS,callMain"
 make -C "$OUT" -j"$(nproc)" qpdf
 
 mkdir -p "$DEST"
