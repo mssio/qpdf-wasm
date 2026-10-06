@@ -28,6 +28,7 @@ Node floor decision (2026-10-06): keep `engines.node` at `>=24`. No Node 22 supp
 | 5 | Dependabot config, schema validation, AGENTS.md | haiku | sonnet | ~10 min | Dependabot may not handle the fixtures' `file:` dependency (fallback documented) |
 | 6 | README stability promise, AGENTS.md, CHANGELOG, version 1.0.0 (no tag), clean-tree `ci.sh` | sonnet | sonnet | ~30–40 min (clean `ci.sh` ≈ 10–15 min) | none significant; the full run is the gate |
 | — | Final whole-branch review (+ one fix wave if needed) | — | **opus** | ~15–30 min | — |
+| — | **Claude (session):** push the branch, open the PR against `main`, watch PR CI (fix on the branch if red) | session model | — | ~15–20 min (CI run ≈ 10 min) | first run of the new workflows on GitHub |
 | 7 | **Claude (session):** after the maintainer merges and pushes `main`: pre-flight checks, user confirmation, tag `v1.0.0`, watch the release, confirm on npm | session model | — | ~15–20 min (release run ≈ 8–10 min, npm visibility ≈ 5 min) | first OIDC publish: trusted-publisher settings |
 
 **Total:**
@@ -40,7 +41,7 @@ These are estimates. Docker and browser runs dominate the wall clock, and they d
 
 ## Global Constraints
 
-- Branch `chore/v1-hardening`. Never push. Never create tags on this branch. Never touch `vendor/qpdf` or `.superpowers/`.
+- Branch `chore/v1-hardening`. Tasks 1–6 never push. The branch is pushed and a PR opened only in the "Open the pull request" step after the final review. Never create tags on this branch. Never touch `vendor/qpdf` or `.superpowers/`.
 - No API, behaviour or build-flag changes. No qpdf or Emscripten version bump.
 - `engines.node`: exactly `">=24"`. `.nvmrc`: `24`. Every `actions/setup-node` step: `node-version: 24`.
 - `@types/node`: latest **24.x** (`^24`), not 26.x. Dependabot must not propose `@types/node` majors.
@@ -843,9 +844,43 @@ git tag -l 'v1.0.0'         # expected: no output (no tag on the branch)
 
 ---
 
-### Task 7: Tag and release 1.0.0 (Claude, after the maintainer merges and pushes `main`)
+### Open the pull request (Claude, after the final whole-branch review)
 
-This task is not dispatched to a subagent. Claude runs it after the maintainer says `main` is merged and pushed. Pushing the tag publishes to npm; the user authorised Claude to do this on 2026-10-06 (spec §6).
+The user asked for a PR rather than a local merge (2026-10-06). Not dispatched to a subagent.
+
+- [ ] **Step 1: Push the branch and open the PR**
+
+```bash
+git push -u origin chore/v1-hardening
+gh pr create --repo mssio/qpdf-wasm --base main --head chore/v1-hardening \
+  --title "release: 1.0.0 — Node 24, latest dependencies, hardening" --body-file <body.md>
+```
+
+Write `<body.md>` in the session scratchpad. It contains:
+- a summary per task;
+- the **breaking change**, Node `>=24`;
+- the verification that passed (clean-tree `ci.sh`, 9/9 browser tests);
+- "no tag is created on this branch; Claude tags `v1.0.0` on `main` after merge";
+- the maintainer checklist (trusted publishing set up, token deleted, optional repository settings from AGENTS.md);
+- then the attribution lines:
+
+  ```
+  🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+  https://claude.ai/code/session_01DByphsgjacP6AzPdW1wceG
+  ```
+
+- [ ] **Step 2: Watch PR CI**
+
+```bash
+gh pr checks --repo mssio/qpdf-wasm --watch
+```
+
+Expected: `verify` passes. If it fails, fix on `chore/v1-hardening`, re-run the relevant local checks, push, and watch again. Report the PR URL and the result to the user. The user reviews and merges on GitHub; any merge method works.
+
+### Task 7: Tag and release 1.0.0 (Claude, after the maintainer merges the PR)
+
+This task is not dispatched to a subagent. Claude runs it after the maintainer says the PR is merged. Pushing the tag publishes to npm; the user authorised Claude to do this on 2026-10-06 (spec §6).
 
 **Files:** none.
 
