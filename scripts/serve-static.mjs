@@ -16,7 +16,13 @@ const types = {
 };
 
 createServer(async (req, res) => {
-  const pathname = decodeURIComponent(new URL(req.url ?? "/", "http://localhost").pathname);
+  let pathname;
+  try {
+    pathname = decodeURIComponent(new URL(req.url ?? "/", "http://localhost").pathname);
+  } catch {
+    res.writeHead(400).end("bad request");
+    return;
+  }
   const relative = pathname === "/" ? "index.html" : pathname.slice(1);
   for (const root of roots.map((r) => resolve(r))) {
     const file = resolve(join(root, relative));
@@ -32,4 +38,4 @@ createServer(async (req, res) => {
     }
   }
   res.writeHead(404).end("not found");
-}).listen(Number(port), () => console.log(`serving ${roots.join(", ")} at http://localhost:${port}/`));
+}).listen(Number(port), "127.0.0.1", () => console.log(`serving ${roots.join(", ")} at http://127.0.0.1:${port}/`));

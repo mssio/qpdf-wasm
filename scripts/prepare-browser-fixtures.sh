@@ -9,7 +9,7 @@ rm -f "$ROOT"/out/pack/*.tgz
 mv "$ROOT"/out/pack/mssio-qpdf-wasm-*.tgz "$ROOT/out/pack/mssio-qpdf-wasm.tgz"
 for app in vite-app webpack-app; do
   dir="$ROOT/test/browser/fixtures/$app"
-  rm -rf "$dir/node_modules/@mssio"
+  rm -rf "$dir/node_modules/@mssio" "$dir/node_modules/.vite"
   cp "$ROOT/test/browser/smoke.js" "$dir/smoke.js"
   (cd "$dir" && npm install --no-package-lock --no-audit --no-fund && npm run build)
 done
