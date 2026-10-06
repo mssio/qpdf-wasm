@@ -12,7 +12,7 @@ or inline (Node). The design source of truth is
 | Path | Responsibility |
 |---|---|
 | `vendor/qpdf` | qpdf git submodule pinned to a release tag. **Read-only.** |
-| `build/` | Wasm build: `emsdk-version` (pinned Emscripten), `build.sh` (runs in Docker; also regenerates `THIRD_PARTY_NOTICES.md` and README's qpdf version line), `qpdf-version.sh`, `patches/` |
+| `build/` | Wasm build: `emsdk-version` + `emsdk-digest` (pinned Emscripten image), `build.sh` (runs in Docker; also regenerates `THIRD_PARTY_NOTICES.md` and README's qpdf version line), `qpdf-version.sh`, `patches/` |
 | `scripts/` | Host-side tooling: Docker wrapper, dist copy, package/README/size checks, `check-generated.sh` (build output committed?), browser-test helpers, `ci.sh` |
 | `src/wasm/` | Generated `qpdf.mjs`/`qpdf.wasm`/`meta.mjs` (gitignored) + committed `.d.mts` declarations |
 | `src/jobs/` | Pure functions: options → qpdf job JSON (`JobSpec`). One file per helper |
@@ -56,6 +56,7 @@ or inline (Node). The design source of truth is
 6. **qpdf message text is matched only in `src/errors.ts`**, and every pattern has a test.
 7. **Every API change updates, in the same PR:** `src/types.ts`, tests, `examples/` + README, AGENTS.md if workflow changed, CHANGELOG.md.
 8. **Never commit build output** (`dist/`, `out/`, `src/wasm/*.mjs|wasm`) and **never publish from a local machine**; releases come only from `.github/workflows/release.yml`.
+9. **Every GitHub Action is pinned to a full commit SHA** with a `# vX.Y.Z` comment (enforced by `test/unit/repo-policy.test.ts`); Dependabot updates them. The Emscripten image is pinned by digest (`build/emsdk-digest`).
 
 ## How to
 
@@ -78,7 +79,25 @@ Commit the submodule, the regenerated notices and README, and a CHANGELOG entry 
 
 ### Upgrade Emscripten
 
-Change `build/emsdk-version`, then run `npm run build:wasm && bash scripts/ci.sh`. Separate PR. Note the size delta in the PR.
+Change `build/emsdk-version`, then record the new image digest (Dependabot can't update it):
+
+```bash
+docker buildx imagetools inspect "emscripten/emsdk:$(cat build/emsdk-version)" | awk '/^Digest:/{print $2; exit}' > build/emsdk-digest
+npm run build:wasm && bash scripts/ci.sh
+```
+
+Separate PR. Note the size delta in the PR.
+
+### Dependency updates
+
+Dependabot (`.github/dependabot.yml`) opens grouped PRs every Monday:
+- **npm, root:** minor and patch updates are grouped; majors come as their own group.
+- **npm, browser test fixtures:** grouped. `@mssio/qpdf-wasm` is ignored there, because it is the packed tarball.
+- **GitHub Actions:** grouped. Dependabot updates the commit SHA and the `# vX.Y.Z` comment together.
+
+`@types/node` majors are ignored on purpose: they must match Node 24 (`engines`, `.nvmrc`, `node-version`). Bump them by hand together with the runtime. The Emscripten image digest is not covered; see "Upgrade Emscripten". Review major updates individually, and merge only green PRs.
+
+If Dependabot reports errors for the fixture directories (their `file:` dependency only exists during tests), remove that entry from `dependabot.yml` and bump the exact fixture pins (`vite`, `webpack`, `webpack-cli`) by hand when you update dependencies.
 
 ### Add a typed helper
 
@@ -89,14 +108,31 @@ Change `build/emsdk-version`, then run `npm run build:wasm && bash scripts/ci.sh
 
 ### Cut a release
 
-1. Make sure `main` is green. Move CHANGELOG "Unreleased" to the new version.
-2. `npm version <patch|minor|major> -m "release: v%s"` (creates the tag).
-3. `git push --follow-tags`. `release.yml` runs three jobs: `build` (tag must match `package.json`; wasm, dist, package checks, `npm pack` → artifact), `test` (all tests; browser tests install that artifact via `QPDF_TARBALL`), and `publish` (the only job with `id-token: write`; no checkout or installs, just `npm publish <tarball> --provenance`). Keep it that way: never run `npm ci`/fixtures in the job that can publish.
-4. **First release only:**
-   - Enable GitHub → repo Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests" (the `qpdf-update` workflow needs it to open PRs).
-   - Before tagging: create a 7-day granular npm token (read+write) and add it as the Actions secret `NPM_TOKEN`.
-   - After the publish: on npmjs.com → package → Settings → Trusted Publisher → GitHub Actions, set `mssio` / `qpdf-wasm` / `release.yml` and allow `npm publish`. Optionally enable "require 2FA and disallow tokens".
-   - Then delete the token and the `NPM_TOKEN` secret.
+1. Make sure `main` is green. Add a CHANGELOG section `## X.Y.Z — YYYY-MM-DD` at the top (`test/unit/repo-policy.test.ts` checks it matches `package.json`).
+2. `npm version <patch|minor|major> --no-git-tag-version`, commit `package.json`, `package-lock.json` and `CHANGELOG.md` as `release: vX.Y.Z`, and merge to `main`.
+3. On `main` (after `git pull`): `git tag -a vX.Y.Z -m "release: vX.Y.Z" && git push origin vX.Y.Z`.
+4. `release.yml` runs three jobs:
+   - `build`: `scripts/check-release-ref.sh` (the tag must match `package.json` and be on `main`), then the wasm, dist, package checks, and `npm pack` → artifact;
+   - `test`: all tests; the browser tests install that artifact via `QPDF_TARBALL`;
+   - `publish`: the only job with `id-token: write`. No checkout or installs; it runs `npm publish <tarball> --provenance` through npm trusted publishing (OIDC).
+
+   Keep it that way: never run `npm ci` or the fixtures in the job that can publish.
+5. Check: `npm view @mssio/qpdf-wasm version`. A new version can take a few minutes to appear.
+
+Trusted publisher on npmjs.com: `mssio` / `qpdf-wasm` / `release.yml`, environment empty. No npm token is used.
+
+## Repository settings (GitHub, set once by the maintainer)
+
+- **Settings → Rules → Rulesets → New branch ruleset** for `main`:
+  - require a pull request before merging;
+  - require status check **`verify`** (from the CI workflow);
+  - block force pushes;
+  - restrict deletions.
+
+  Add the maintainer to the bypass list for emergencies.
+- **Settings → Actions → General:**
+  - workflow permissions **"Read repository contents and packages permissions"**; the workflows request more per job;
+  - enable **"Allow GitHub Actions to create and approve pull requests"**, which the `qpdf-update` workflow needs.
 
 ## Known gotchas
 
@@ -126,3 +162,4 @@ Change `build/emsdk-version`, then run `npm run build:wasm && bash scripts/ci.sh
 | `package.json`, exports, files | `npm run build && npm run lint:package && npm run check:package && npm run test:browser` |
 | README/examples | `npm run check:readme && npm run test:node` |
 | `.github/workflows/*` | `npx --yes @action-validator/cli <each changed workflow>` |
+| `.github/dependabot.yml` | schema validation (see the Task 5 command in `docs/superpowers/plans/2026-10-06-v1-hardening.md`) |

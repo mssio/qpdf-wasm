@@ -159,7 +159,7 @@ Password and invalid-PDF detection match qpdf's stderr messages; the exact patte
 - `package.json`: `"name": "@mssio/qpdf-wasm"`, `"type": "module"`, `"exports"` with `types` + `import` conditions for `.` (the worker is reached internally via `new URL`, not an export), `"sideEffects": ["./dist/worker.js"]` (only the worker entry has side effects), `"repository": { "type": "git", "url": "git+https://github.com/mssio/qpdf-wasm.git" }`, `"homepage"` and `"bugs"` pointing at the GitHub repo, `"files": ["dist", "LICENSE", "THIRD_PARTY_NOTICES.md"]`, `"publishConfig": { "access": "public" }` (provenance is automatic under trusted publishing).
 - `dist/` contains the compiled TS (ESM + `.d.ts`), `dist/wasm/qpdf.mjs`, `dist/wasm/qpdf.wasm`, `dist/wasm/meta.mjs` and their `.d.mts` declarations.
 - Worker is created with `new Worker(new URL("./worker.js", import.meta.url), { type: "module" })` and the wasm is located with `new URL("./wasm/qpdf.wasm", import.meta.url)` — the patterns Vite, webpack 5, Rollup, esbuild and Next.js resolve without configuration.
-- Node ≥ 20.16 is supported via inline mode (§4.2 default when global `Worker` is undefined). Library code never imports Node built-ins; it reads `file:` URLs through `process.getBuiltinModule` (added in 20.16), which bundlers cannot see.
+- Node ≥ 24 (raised in 1.0.0) is supported via inline mode (§4.2 default when global `Worker` is undefined). Library code never imports Node built-ins; it reads `file:` URLs through `process.getBuiltinModule` (added in 20.16), which bundlers cannot see.
 - Invalid arguments (e.g. `merge([])`, out-of-range `level`) throw `TypeError`/`RangeError`; `QpdfError` is reserved for qpdf/runtime failures.
 
 ## 6. Licensing
