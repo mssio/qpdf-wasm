@@ -6,6 +6,9 @@ on:
 permissions:
   contents: write
   pull-requests: write
+concurrency:
+  group: qpdf-update
+  cancel-in-progress: false
 jobs:
   update:
     runs-on: ubuntu-latest
@@ -20,19 +23,23 @@ jobs:
         run: |
           latest=$(gh release view --repo qpdf/qpdf --json tagName -q .tagName)
           current="v$(bash build/qpdf-version.sh)"
+          [[ "$latest" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Unexpected qpdf tag: $latest" >&2; exit 1; }
           branch="chore/qpdf-$latest"
           echo "latest=$latest" >> "$GITHUB_OUTPUT"
           echo "current=$current" >> "$GITHUB_OUTPUT"
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
-          if [ "$latest" = "$current" ] || git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+          open_prs=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$branch" --state open --json number -q 'length')
+          if [ "$latest" = "$current" ] || [ "$open_prs" -gt 0 ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "Nothing to do: pinned $current, latest $latest"
           fi
       - name: Bump submodule
         if: steps.versions.outputs.skip != 'true'
+        env:
+          LATEST: ${{ steps.versions.outputs.latest }}
         run: |
-          git -C vendor/qpdf fetch --depth 1 origin "refs/tags/${{ steps.versions.outputs.latest }}:refs/tags/${{ steps.versions.outputs.latest }}"
-          git -C vendor/qpdf checkout "${{ steps.versions.outputs.latest }}"
+          git -C vendor/qpdf fetch --depth 1 origin "refs/tags/$LATEST:refs/tags/$LATEST"
+          git -C vendor/qpdf checkout "$LATEST"
       - uses: actions/setup-node@v6
         if: steps.versions.outputs.skip != 'true'
         with:
@@ -44,12 +51,16 @@ jobs:
         run: |
           npm ci
           npx playwright install --with-deps chromium firefox webkit
-          npm run build:wasm   # regenerates THIRD_PARTY_NOTICES.md for the new version
-          git add vendor/qpdf THIRD_PARTY_NOTICES.md
           set +e
-          bash scripts/ci.sh > ci.log 2>&1
+          npm run build:wasm > ci.log 2>&1
           status=$?
+          if [ "$status" -eq 0 ]; then
+            git add THIRD_PARTY_NOTICES.md   # regenerated for the new version
+            bash scripts/ci.sh >> ci.log 2>&1
+            status=$?
+          fi
           set -e
+          git add vendor/qpdf
           echo "status=$status" >> "$GITHUB_OUTPUT"
           tail -n 60 ci.log
       - name: Open pull request
@@ -65,7 +76,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -c "$BRANCH"
           git commit -m "chore: qpdf $LATEST"
-          git push origin "$BRANCH"
+          git push --force origin "$BRANCH"
           if [ "$STATUS" = "0" ]; then result="✅ \`scripts/ci.sh\` passed"; else result="❌ \`scripts/ci.sh\` failed (exit $STATUS); see the log below and the AGENTS.md upgrade checklist"; fi
           size=$(grep 'qpdf.wasm gzip' ci.log || echo "size: not reached")
           {

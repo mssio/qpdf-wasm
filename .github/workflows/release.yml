@@ -28,7 +28,7 @@ jobs:
       - run: npx playwright install --with-deps chromium firefox webkit
       - run: bash scripts/ci.sh
       - name: Publish
-        run: npm publish --access public
+        run: npm publish --provenance --access public
         env:
           # Only for the very first release (bootstrap token). Once the trusted publisher is
           # configured on npmjs.com, delete the NPM_TOKEN secret and OIDC is used instead.

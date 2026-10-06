@@ -91,6 +91,7 @@ Change `build/emsdk-version`, then run `npm run build:wasm && bash scripts/ci.sh
 2. `npm version <patch|minor|major> -m "release: v%s"` (creates the tag).
 3. `git push --follow-tags`. `release.yml` verifies the tag matches `package.json`, runs `scripts/ci.sh`, then publishes.
 4. **First release only:**
+   - Enable GitHub → repo Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests" (the `qpdf-update` workflow needs it to open PRs).
    - Before tagging: create a 7-day granular npm token (read+write) and add it as the Actions secret `NPM_TOKEN`.
    - After the publish: on npmjs.com → package → Settings → Trusted Publisher → GitHub Actions, set `mssio` / `qpdf-wasm` / `release.yml` and allow `npm publish`. Optionally enable "require 2FA and disallow tokens".
    - Then delete the token and the `NPM_TOKEN` secret.
