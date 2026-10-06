@@ -47,7 +47,7 @@ function runIsolated(op: string, pdf: Uint8Array): Promise<Outcome> {
       resolve(outcome);
     };
     worker.once("message", finish);
-    worker.once("error", (error) => finish({ kind: "crashed", message: `${error.name}: ${error.message}` }));
+    worker.once("error", (error: Error) => finish({ kind: "crashed", message: `${error.name}: ${error.message}` }));
   });
 }
 
