@@ -54,7 +54,8 @@ function instantiate(wasm: WebAssembly.Module, stdout: string[], stderr: string[
 
 function callMain(mod: QpdfModule, args: string[]): number {
   try {
-    return mod.callMain(args) ?? 0;
+    // Copy: Emscripten's callMain unshifts thisProgram into the array it is given.
+    return mod.callMain([...args]) ?? 0;
   } catch (error) {
     // qpdf calls exit(); Emscripten surfaces that as a thrown ExitStatus { status }.
     if (typeof error === "object" && error !== null && "status" in error && typeof error.status === "number") {

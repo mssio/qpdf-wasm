@@ -151,6 +151,12 @@ describe("run", () => {
     const r = await qpdf.run(["--split-pages", "in.pdf", "part-%d.pdf"], { files: { "in.pdf": await form() } });
     expect(Object.keys(r.files).sort()).toEqual(["part-1.pdf", "part-2.pdf", "part-3.pdf"]);
   });
+  it("does not modify the caller's args array, so it can be reused", async () => {
+    const args = ["--check", "in.pdf"];
+    expect((await qpdf.run(args, { files: { "in.pdf": await form() } })).exitCode).toBe(0);
+    expect((await qpdf.run(args, { files: { "in.pdf": await form() } })).exitCode).toBe(0);
+    expect(args).toEqual(["--check", "in.pdf"]);
+  });
 });
 
 describe("inputs", () => {
