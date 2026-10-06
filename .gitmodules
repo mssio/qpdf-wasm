@@ -1,0 +1,4 @@
+[submodule "vendor/qpdf"]
+	path = vendor/qpdf
+	url = https://github.com/qpdf/qpdf.git
+	shallow = true

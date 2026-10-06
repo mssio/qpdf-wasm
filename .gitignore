@@ -1,0 +1,12 @@
+node_modules/
+dist/
+out/
+src/wasm/*.mjs
+src/wasm/*.wasm
+test/browser/fixtures/*/node_modules/
+test/browser/fixtures/*/dist/
+test/browser/fixtures/*/package-lock.json
+test/browser/fixtures/*/smoke.js
+test-results/
+playwright-report/
+.DS_Store
