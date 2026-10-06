@@ -13,7 +13,7 @@ export function splitJob(input: Uint8Array, options: SplitOptions = {}): JobSpec
 }
 
 /** qpdf names split outputs out-N.pdf or out-N-M.pdf; return them in page order. */
-export function collectSplitOutputs(files: Record<string, Uint8Array>): Uint8Array[] {
+export function collectSplitOutputs(files: Record<string, Uint8Array<ArrayBuffer>>): Uint8Array<ArrayBuffer>[] {
   return Object.entries(files)
     .flatMap(([name, bytes]) => {
       const match = SPLIT_OUTPUT.exec(name);

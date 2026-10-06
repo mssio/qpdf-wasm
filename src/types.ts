@@ -11,13 +11,14 @@ export interface CreateQpdfOptions {
 }
 
 export interface QpdfResult {
-  output: Uint8Array;
+  /** Always backed by a plain ArrayBuffer, so it is a valid `BlobPart`. */
+  output: Uint8Array<ArrayBuffer>;
   /** qpdf warnings (exit code 3). Empty when qpdf was silent. */
   warnings: string[];
 }
 
 export interface SplitResult {
-  outputs: Uint8Array[];
+  outputs: Uint8Array<ArrayBuffer>[];
   warnings: string[];
 }
 
@@ -75,7 +76,7 @@ export interface RunResult {
   stdout: string;
   stderr: string;
   /** Every file the run created in the working directory, by relative path. */
-  files: Record<string, Uint8Array>;
+  files: Record<string, Uint8Array<ArrayBuffer>>;
 }
 
 export interface Qpdf {

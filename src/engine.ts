@@ -27,7 +27,7 @@ export async function runJob(wasm: WebAssembly.Module, spec: JobSpec): Promise<R
 
   const exitCode = callMain(mod, spec.args);
 
-  const files: Record<string, Uint8Array> = {};
+  const files: Record<string, Uint8Array<ArrayBuffer>> = {};
   for (const path of listFiles(mod, WORKDIR)) {
     if (!inputs.has(path)) files[path.slice(WORKDIR.length + 1)] = mod.FS.readFile(path);
   }
