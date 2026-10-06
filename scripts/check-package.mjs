@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Verifies what `npm publish` would ship: required files present, sources and tests absent.
+// Verifies what `npm publish` would ship: required files present; sources, tests and source maps
+// (they would point at src/, which is not shipped) absent.
 import { execFileSync } from "node:child_process";
 
 const [{ files }] = JSON.parse(execFileSync("npm", ["pack", "--dry-run", "--json"], { encoding: "utf8" }));
@@ -19,7 +20,7 @@ const required = [
   "dist/wasm/meta.d.mts",
 ];
 const missing = required.filter((p) => !paths.has(p));
-const forbidden = [...paths].filter((p) => /^(src|test|vendor|build|scripts|examples|out)\//.test(p));
+const forbidden = [...paths].filter((p) => /^(src|test|vendor|build|scripts|examples|out)\//.test(p) || p.endsWith(".map"));
 
 if (missing.length || forbidden.length) {
   if (missing.length) console.error(`Missing from package: ${missing.join(", ")}`);
