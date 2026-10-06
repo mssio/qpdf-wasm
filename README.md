@@ -18,9 +18,7 @@ Bundled qpdf version: see [CHANGELOG](./CHANGELOG.md) or `import { qpdfVersion }
 - **The real qpdf**: every qpdf feature is reachable, including through the raw CLI (`run()`).
 - **Runs in a Web Worker** by default, so your UI never freezes.
 - **Works with any framework**: plain ESM + Promises + TypeScript types. React, Vue, Svelte, Angular, vanilla.
-- **Zero bundler config**: tested with Vite (production build and dev server) and webpack 5 in Chromium,
-  Firefox and WebKit. Rollup, esbuild and Next.js understand the same standard
-  `new URL(..., import.meta.url)` and `new Worker(new URL(...))` patterns (not tested here).
+- **Zero bundler config** with Vite and webpack 5 (tested); see Bundlers & hosting for others.
 - **Lazy**: the ~697 KB (gzip) wasm downloads only when you call `createQpdf()`.
 
 ## Install
@@ -222,6 +220,7 @@ export async function checkPdf(file) {
   try {
     // Any qpdf command line works; files are placed in qpdf's working directory.
     const { exitCode, stdout, stderr } = await qpdf.run(["--check", "input.pdf"], { files: { "input.pdf": file } });
+    // qpdf exit codes: 0 = success, 3 = success with warnings, 2 = error
     return { ok: exitCode === 0, report: exitCode === 0 ? stdout : stderr };
   } finally {
     qpdf.terminate();
@@ -234,7 +233,9 @@ instance and reuse it (see below).
 
 ## Framework usage
 
-Create one instance for the app (or a component's lifetime) and call `terminate()` when done.
+Create one instance for the app (or a component's lifetime) and call `terminate()` when done. With SSR
+frameworks such as Next.js, Nuxt or SvelteKit, create the instance on the client only (inside `useEffect`,
+`onBeforeMount` or `onMount`).
 
 **React**
 
@@ -247,7 +248,9 @@ export function useQpdf() {
   useEffect(() => {
     let instance;
     let cancelled = false;
-    createQpdf().then((q) => (cancelled ? q.terminate() : setQpdf((instance = q))));
+    createQpdf()
+      .then((q) => (cancelled ? q.terminate() : setQpdf((instance = q))))
+      .catch((error) => console.error("qpdf failed to load", error));
     return () => {
       cancelled = true;
       instance?.terminate();
@@ -266,7 +269,8 @@ import { createQpdf } from "@mssio/qpdf-wasm";
 export function useQpdf() {
   const qpdf = shallowRef(null);
   const ready = createQpdf().then((q) => (qpdf.value = q));
-  onBeforeUnmount(() => ready.then((q) => q.terminate()));
+  ready.catch((error) => console.error("qpdf failed to load", error));
+  onBeforeUnmount(() => ready.then((q) => q.terminate(), () => {}));
   return qpdf;
 }
 ```
@@ -278,7 +282,8 @@ export function useQpdf() {
   import { onDestroy } from "svelte";
   import { createQpdf } from "@mssio/qpdf-wasm";
   const ready = createQpdf();
-  onDestroy(() => ready.then((q) => q.terminate()));
+  ready.catch((error) => console.error("qpdf failed to load", error));
+  onDestroy(() => ready.then((q) => q.terminate(), () => {}));
   async function merge(files) {
     const qpdf = await ready;
     return (await qpdf.merge([...files])).output;
@@ -347,11 +352,12 @@ larger buffers (e.g. `subarray`) are copied automatically, so your data stays in
 ## Bundlers & hosting
 
 - **Vite and webpack 5**: no configuration needed, in production builds and (for Vite) the dev server.
-  This is covered by the browser test suite in Chromium, Firefox and WebKit.
-- **Rollup, esbuild, Next.js**: the package uses the standard
+  Tested in CI in Chromium, Firefox and WebKit.
+- **Next.js** (webpack or Turbopack): uses the same standard
   `new Worker(new URL("./worker.js", import.meta.url), { type: "module" })` and
-  `new URL("./wasm/qpdf.wasm", import.meta.url)` patterns, which these tools understand. They are not part
-  of this project's test matrix.
+  `new URL("./wasm/qpdf.wasm", import.meta.url)` patterns. Not tested in CI.
+- **Rollup and esbuild**: these do not emit assets for `new URL(..., import.meta.url)` on their own, so you
+  need an `import.meta.url` asset plugin. Not tested.
 - **CDN / custom location**: `createQpdf({ wasmUrl: "https://cdn.example.com/qpdf.wasm" })`.
 - **MIME type**: serve `.wasm` as `application/wasm` for the fastest (streaming) compile. Other types still work.
 - **Content-Security-Policy**: allow `script-src 'wasm-unsafe-eval'` and `worker-src 'self'`.
@@ -371,8 +377,8 @@ await writeFile("out.pdf", output);
 
 ## Performance & limits
 
-- Module start-up is a few milliseconds once `qpdf.wasm` is compiled (compiled once per worker and cached).
-- Small PDFs process in tens of milliseconds.
+- `qpdf.wasm` is compiled once per worker and cached. In our tests, starting a job takes a few milliseconds
+  after that, and small test PDFs (~30 KB) process in tens of milliseconds; large files scale with size.
 - Files are held in memory (in the worker), so peak memory is roughly input size + output size.
 
 ## Versioning
