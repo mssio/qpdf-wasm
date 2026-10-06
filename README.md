@@ -375,7 +375,7 @@ larger buffers (e.g. `subarray`) are copied automatically, so your data stays in
 
 ## Node.js
 
-Node ≥ 20.16. With no global `Worker`, jobs run inline on the calling thread automatically:
+Node ≥ 24. With no global `Worker`, jobs run inline on the calling thread automatically:
 
 ```js
 import { readFile, writeFile } from "node:fs/promises";

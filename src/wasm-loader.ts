@@ -32,10 +32,10 @@ interface NodeFs {
   readFile(path: URL): Promise<Uint8Array<ArrayBuffer>>;
 }
 
-// process.getBuiltinModule (Node >= 20.16) avoids any import statement bundlers could see.
+// process.getBuiltinModule (Node >= 24 here; available since 20.16) avoids any import statement bundlers could see.
 async function compileFromFile(url: URL): Promise<WebAssembly.Module> {
   const proc = (globalThis as { process?: { getBuiltinModule?: (id: string) => unknown } }).process;
   const fs = proc?.getBuiltinModule?.("node:fs/promises") as NodeFs | undefined;
-  if (!fs) throw new Error("file: URLs are only supported in Node.js >= 20.16");
+  if (!fs) throw new Error("file: URLs are only supported in Node.js >= 24");
   return WebAssembly.compile(await fs.readFile(url));
 }
