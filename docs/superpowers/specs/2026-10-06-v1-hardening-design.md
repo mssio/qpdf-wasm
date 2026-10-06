@@ -116,7 +116,7 @@ From 1.0.0, semver applies to the public API (README "Versioning" section, updat
 
 - Every `uses:` in `.github/workflows/*.yml` becomes `owner/repo@<40-char sha> # vX.Y.Z`.
 - SHAs are resolved at implementation time from the release tag (`gh api repos/<owner>/<repo>/commits/<tag> -q .sha`). The §2 SHAs are the values as of today.
-- A test, `test/unit/workflows.test.ts`, fails if any `uses:` in `.github/workflows/*.yml` is not a 40-hex SHA followed by a `# v…` comment. This keeps unpinned actions from creeping back in.
+- A test, `test/unit/repo-policy.test.ts`, fails if any `uses:` in `.github/workflows/*.yml` is not a 40-hex SHA followed by a `# v…` comment. This keeps unpinned actions from creeping back in.
 
 ### 5.2 Pin the Emscripten image by digest
 
@@ -145,7 +145,7 @@ Dependabot PRs run `ci.yml` normally; unlike `GITHUB_TOKEN` PRs, they do trigger
 ### 5.4 Release only from `main`
 
 In `release.yml`'s `build` job, after the tag/version check:
-- Fetch `main`, and fail unless `git merge-base --is-ancestor "$GITHUB_SHA" origin/main`.
+- The check lives in `scripts/check-release-ref.sh <tag> <sha>`, which replaces the inline tag/version step and is tested by `test/node/release-ref.test.ts`. The `build` job checks out with `fetch-depth: 0`. The script fails unless the tag equals `v` + the `package.json` version and `git merge-base --is-ancestor "$GITHUB_SHA" origin/main` holds.
 - The message must say the tag must point at a commit on `main`.
 - The checkout keeps `persist-credentials: false`. Fetching a public repo needs no credentials.
 
@@ -188,7 +188,7 @@ The maintainer asked Claude to create and push the `v1.0.0` tag after `main` is 
 
 ## 7. Testing
 
-- **Unit:** the new `workflows.test.ts` (§5.1). The existing suite runs unchanged under Vitest 5.
+- **Unit:** the new `repo-policy.test.ts` (§5.1; also checks Node alignment, the emsdk digest format and CHANGELOG/version agreement) and `test/node/release-ref.test.ts` (§5.4). The existing suite runs unchanged under Vitest 5.
 - **Typecheck:** passes against `@types/node@24`.
 - **Validation:** `npx --yes @action-validator/cli` on every workflow, plus `dependabot.yml` against GitHub's schema. Use action-validator's support for it if present; otherwise `npx --yes ajv-cli` with the published schema.
 - **Full verification:** a clean-tree `bash scripts/ci.sh` with the digest-pinned image. Every step must pass, with 9/9 browser tests.
