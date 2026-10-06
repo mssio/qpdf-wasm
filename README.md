@@ -20,7 +20,7 @@ At runtime: `import { qpdfVersion } from "@mssio/qpdf-wasm"`.
 - **Runs in a Web Worker** by default, so your UI never freezes.
 - **Works with any framework**: plain ESM + Promises + TypeScript types. React, Vue, Svelte, Angular, vanilla.
 - **Zero bundler config** with Vite and webpack 5 (tested); see Bundlers & hosting for others.
-- **Lazy**: the ~697 KB (gzip) wasm downloads only when you call `createQpdf()`.
+- **Lazy**: the ~700 KB (gzip) wasm downloads only when you call `createQpdf()`.
 
 ## Install
 
