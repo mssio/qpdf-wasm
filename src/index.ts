@@ -1,4 +1,5 @@
 import { createQpdfApi } from "./api.js";
+import { QpdfError } from "./errors.js";
 import { createInlineExecutor } from "./inline-executor.js";
 import type { CreateQpdfOptions, Qpdf } from "./types.js";
 import { loadWasmModule, resolveWasmUrl } from "./wasm-loader.js";
@@ -33,6 +34,9 @@ export async function createQpdf(options: CreateQpdfOptions = {}): Promise<Qpdf>
   if (!Number.isInteger(size) || size < 1) throw new RangeError("createQpdf() workers must be an integer >= 1");
   const inline = options.inline ?? typeof Worker === "undefined";
   if (inline) return createQpdfApi(createInlineExecutor(await loadWasmModule(wasmUrl)));
+  if (typeof Worker === "undefined") {
+    throw new QpdfError("FAILED", "Web Workers are not available in this environment; use { inline: true }");
+  }
 
   const pool = await createWorkerPool({
     size,

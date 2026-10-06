@@ -35,6 +35,14 @@ describe("exports", () => {
   });
 });
 
+describe("createQpdf", () => {
+  it("rejects { inline: false } with QpdfError FAILED where Web Workers do not exist", async () => {
+    expect(typeof Worker).toBe("undefined");
+    const err = await expectQpdfError(createQpdf({ inline: false }), "FAILED");
+    expect(err.message).toBe("Web Workers are not available in this environment; use { inline: true }");
+  });
+});
+
 describe("info", () => {
   it("reports version, pages and encryption", async () => {
     expect(await qpdf.info(await form())).toEqual({ pdfVersion: "1.4", pageCount: 3, encrypted: false, warnings: [] });
