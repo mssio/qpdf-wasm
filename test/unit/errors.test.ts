@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyFailure, failureFromResult, parseWarnings, QpdfError, terminatedError } from "../../src/errors.js";
+import { classifyFailure, crashError, failureFromResult, parseWarnings, QpdfError, terminatedError } from "../../src/errors.js";
 
 // Real stderr captured from qpdf 12.4.2 (spike, 2026-10-05).
 const WRONG_PASSWORD = "qpdf: in.pdf: invalid password";
@@ -67,5 +67,19 @@ describe("terminatedError", () => {
     const err = terminatedError();
     expect(err.code).toBe("TERMINATED");
     expect(err.exitCode).toBeNull();
+  });
+});
+
+describe("crashError", () => {
+  it("keeps QpdfErrors as they are", () => {
+    const error = new QpdfError("INVALID_PDF", "bad");
+    expect(crashError(error)).toBe(error);
+  });
+  it("wraps anything else as FAILED with a 'qpdf crashed' message", () => {
+    const wrapped = crashError(new WebAssembly.RuntimeError("memory access out of bounds"));
+    expect(wrapped).toBeInstanceOf(QpdfError);
+    expect(wrapped.code).toBe("FAILED");
+    expect(wrapped.message).toBe("qpdf crashed: memory access out of bounds");
+    expect(crashError("boom").message).toBe("qpdf crashed: boom");
   });
 });

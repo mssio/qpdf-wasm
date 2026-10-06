@@ -50,3 +50,12 @@ export function failureFromResult(result: { exitCode: number; stderr: string }):
 export function terminatedError(): QpdfError {
   return new QpdfError("TERMINATED", "qpdf instance was terminated");
 }
+
+/**
+ * Normalises anything a job threw: QpdfErrors pass through; anything else (a wasm trap, an
+ * out-of-memory abort, a failed instantiation) becomes FAILED. Used by both executors.
+ */
+export function crashError(error: unknown): QpdfError {
+  if (error instanceof QpdfError) return error;
+  return new QpdfError("FAILED", `qpdf crashed: ${error instanceof Error ? error.message : String(error)}`);
+}

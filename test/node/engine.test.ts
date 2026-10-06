@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { runJob } from "../../src/engine.js";
 import { QpdfError } from "../../src/errors.js";
+import { createInlineExecutor } from "../../src/inline-executor.js";
 import { defaultWasmUrl, loadWasmModule } from "../../src/wasm-loader.js";
 import { fixture } from "../helpers.js";
 
@@ -85,5 +86,33 @@ describe("runJob", () => {
       expect(r.exitCode, `job ${i} (${args.join(" ")}): ${r.stderr}`).toBe(0);
       if (i % 2 === 0) expect(JSON.parse(r.stdout).pages).toHaveLength(3);
     }
+  });
+});
+
+describe("inline executor", () => {
+  // A valid wasm module that imports a function qpdf's glue does not provide: instantiation fails with a LinkError.
+  const unlinkable = new WebAssembly.Module(
+    new Uint8Array([
+      0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, // header
+      0x01, 0x04, 0x01, 0x60, 0x00, 0x00, // type section: () -> ()
+      0x02, 0x0f, 0x01, 0x03, 0x65, 0x6e, 0x76, 0x07, 0x6d, 0x69, 0x73, 0x73, 0x69, 0x6e, 0x67, 0x00, 0x00, // import env.missing
+    ]),
+  );
+
+  it("rejects a wasm failure with QpdfError FAILED instead of a raw WebAssembly error", async () => {
+    const err = await createInlineExecutor(unlinkable)
+      .exec({ args: ["--version"], files: {} })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(QpdfError);
+    expect((err as QpdfError).code).toBe("FAILED");
+    expect((err as QpdfError).message).toMatch(/^qpdf crashed: /);
+  });
+
+  it("passes QpdfErrors through unchanged", async () => {
+    const err = await createInlineExecutor(wasm)
+      .exec({ args: [], files: { "../escape.pdf": form } })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(QpdfError);
+    expect((err as QpdfError).message).toBe("invalid file path: ../escape.pdf");
   });
 });

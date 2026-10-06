@@ -1,4 +1,5 @@
 import { runJob } from "./engine.js";
+import { crashError, QpdfError } from "./errors.js";
 import type { FromWorker, ToWorker } from "./protocol.js";
 import { transferablesOf } from "./transfer.js";
 import { loadWasmModule } from "./wasm-loader.js";
@@ -21,11 +22,12 @@ export function createWorkerHandler(port: WorkerPort): (message: ToWorker) => Pr
       return;
     }
     try {
-      if (!wasm) throw new Error("qpdf worker received a job before init");
+      if (!wasm) throw new QpdfError("FAILED", "qpdf worker received a job before init");
       const result = await runJob(wasm, message.spec);
       port.postMessage({ type: "result", id: message.id, result }, transferablesOf(result.files));
     } catch (error) {
-      port.postMessage({ type: "error", id: message.id, message: errorMessage(error) });
+      // Same wording as the inline executor; the pool turns this into QpdfError FAILED.
+      port.postMessage({ type: "error", id: message.id, message: crashError(error).message });
     }
   };
 }
