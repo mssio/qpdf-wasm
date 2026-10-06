@@ -12,7 +12,8 @@
     "allowJs": true,
     "checkJs": false,
     "types": ["node"],
-    "noEmit": true
+    "noEmit": true,
+    "paths": { "@mssio/qpdf-wasm": ["./src/index.ts"] }
   },
   "include": ["src", "test", "examples", "vitest.config.ts", "playwright.config.ts"],
   "exclude": ["test/browser/fixtures"]
