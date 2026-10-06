@@ -15,6 +15,29 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-06-v1-hardening-design.md` (builds on `docs/superpowers/specs/2026-10-05-qpdf-wasm-design.md`).
 
+## Summary
+
+Node floor decision (2026-10-06): keep `engines.node` at `>=24`. No Node 22 support or CI job.
+
+| # | Task | Implementer model | Reviewer model | Effort (wall clock) | Main risk |
+|---|---|---|---|---|---|
+| 1 | Node 24 alignment: `engines >=24`, `@types/node` 24.x, docs; creates `repo-policy.test.ts` | haiku | sonnet | ~10 min | typecheck finds a Node 26-only API (unlikely) |
+| 2 | Latest npm deps (Vitest 5) and fixture tools; full Node and browser suites | sonnet | sonnet | ~20–30 min | Vitest 5 config/API changes; the `nesting.test.ts` worker harness |
+| 3 | Actions v7, SHA pinning, `check-release-ref.sh` and its test, `npm audit signatures`, drop the bootstrap token | sonnet | **opus** (security-sensitive release path) | ~30–40 min | checkout/setup-node v7 input changes; `fetch-depth: 0` + `origin/main` in the release job |
+| 4 | Pin the emsdk image by digest; `build-wasm.sh` validation; AGENTS.md | haiku | sonnet | ~10–15 min (includes one Docker build) | none significant |
+| 5 | Dependabot config, schema validation, AGENTS.md | haiku | sonnet | ~10 min | Dependabot may not handle the fixtures' `file:` dependency (fallback documented) |
+| 6 | README stability promise, AGENTS.md, CHANGELOG, version 1.0.0 (no tag), clean-tree `ci.sh` | sonnet | sonnet | ~30–40 min (clean `ci.sh` ≈ 10–15 min) | none significant; the full run is the gate |
+| — | Final whole-branch review (+ one fix wave if needed) | — | **opus** | ~15–30 min | — |
+| 7 | **Claude (session):** after the maintainer merges and pushes `main`: pre-flight checks, user confirmation, tag `v1.0.0`, watch the release, confirm on npm | session model | — | ~15–20 min (release run ≈ 8–10 min, npm visibility ≈ 5 min) | first OIDC publish: trusted-publisher settings |
+
+**Total:**
+- **Subagent-driven:** ≈ 2.5–3.5 h wall clock including reviews and fix rounds, plus Task 7 after your merge.
+- **Native** execution (Claude implements Tasks 1–6 in-session, one opus review at the end): ≈ 1.5–2 h.
+
+**Token cost:** roughly 0.6–1.0 M subagent tokens (subagent-driven) vs 0.3–0.5 M (native), both a small fraction of the session budget.
+
+These are estimates. Docker and browser runs dominate the wall clock, and they depend on the machine and network.
+
 ## Global Constraints
 
 - Branch `chore/v1-hardening`. Never push. Never create tags on this branch. Never touch `vendor/qpdf` or `.superpowers/`.
