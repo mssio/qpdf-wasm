@@ -2,20 +2,26 @@ name: Release
 on:
   push:
     tags: ["v*"]
-permissions:
-  id-token: write # npm trusted publishing (OIDC) + provenance
-  contents: read
+# Least privilege per job. Only `publish` can mint an OIDC token, and it runs no third-party code:
+# it publishes the exact tarball that `build` produced and `test` verified.
+permissions: {}
+concurrency:
+  group: release
+  cancel-in-progress: false
 jobs:
-  publish:
+  build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v6
         with:
           submodules: recursive
+          persist-credentials: false
       - uses: actions/setup-node@v6
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
           package-manager-cache: false # never use caching in release builds
       - name: Tag must match package.json version
         run: |
@@ -24,11 +30,80 @@ jobs:
             echo "Tag $GITHUB_REF_NAME does not match package.json version $version" >&2
             exit 1
           fi
-      - run: npm ci
+      - run: npm ci --ignore-scripts
+      - run: npm run build:wasm
+      - run: bash scripts/check-generated.sh
+      - run: npm run build
+      - run: npm run lint:package
+      - run: npm run check:package
+      - run: node scripts/size-report.mjs
+      - name: Pack
+        run: |
+          mkdir -p out/release
+          npm pack --ignore-scripts --pack-destination out/release
+          ls -l out/release
+      - uses: actions/upload-artifact@v7
+        with:
+          name: package
+          path: out/release/*.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: npm ci --ignore-scripts
       - run: npx playwright install --with-deps chromium firefox webkit
-      - run: bash scripts/ci.sh
+      # The wasm is rebuilt here only for the unit/Node tests, which run against src/.
+      - run: npm run build:wasm
+      - run: npm run build
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run check:readme
+      - uses: actions/download-artifact@v8
+        with:
+          name: package
+          path: out/release
+      # Browser tests install the exact tarball that `publish` will upload.
+      - name: Browser tests against the release tarball
+        run: |
+          tarball=$(ls out/release/*.tgz)
+          QPDF_TARBALL="$PWD/$tarball" npm run test:browser
+
+  publish:
+    needs: [build, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing (OIDC) + provenance
+    steps:
+      # No checkout and no dependency install: nothing but npm itself runs with the OIDC token.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: package
+          path: release
       - name: Publish
-        run: npm publish --provenance --access public
+        run: |
+          tarball=$(ls release/*.tgz)
+          npm publish "./$tarball" --provenance --access public
         env:
           # Only for the very first release (bootstrap token). Once the trusted publisher is
           # configured on npmjs.com, delete the NPM_TOKEN secret and OIDC is used instead.

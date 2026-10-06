@@ -4,5 +4,5 @@
   "type": "module",
   "scripts": { "build": "webpack --config webpack.config.mjs" },
   "dependencies": { "@mssio/qpdf-wasm": "file:../../../../out/pack/mssio-qpdf-wasm.tgz" },
-  "devDependencies": { "webpack": "latest", "webpack-cli": "latest" }
+  "devDependencies": { "webpack": "5.111.1", "webpack-cli": "7.2.3" }
 }

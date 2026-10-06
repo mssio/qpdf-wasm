@@ -4,5 +4,5 @@
   "type": "module",
   "scripts": { "build": "vite build", "dev": "vite --port 4303 --strictPort" },
   "dependencies": { "@mssio/qpdf-wasm": "file:../../../../out/pack/mssio-qpdf-wasm.tgz" },
-  "devDependencies": { "vite": "latest" }
+  "devDependencies": { "vite": "8.3.3" }
 }

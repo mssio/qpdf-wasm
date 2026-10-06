@@ -12,10 +12,14 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
+      # The token is not stored in .git/config: dependency installs and the build run without it.
+      # Only the push step below receives it.
       - uses: actions/checkout@v6
         with:
           submodules: recursive
+          persist-credentials: false
       - name: Compare pinned and latest qpdf
         id: versions
         env:
@@ -49,13 +53,13 @@ jobs:
         if: steps.versions.outputs.skip != 'true'
         id: verify
         run: |
-          npm ci
+          npm ci --ignore-scripts
           npx playwright install --with-deps chromium firefox webkit
           set +e
           npm run build:wasm > ci.log 2>&1
           status=$?
           if [ "$status" -eq 0 ]; then
-            git add THIRD_PARTY_NOTICES.md   # regenerated for the new version
+            git add THIRD_PARTY_NOTICES.md README.md   # regenerated for the new version
             bash scripts/ci.sh >> ci.log 2>&1
             status=$?
           fi
@@ -76,7 +80,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -c "$BRANCH"
           git commit -m "chore: qpdf $LATEST"
-          git push --force origin "$BRANCH"
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/$BRANCH"
           if [ "$STATUS" = "0" ]; then result="✅ \`scripts/ci.sh\` passed"; else result="❌ \`scripts/ci.sh\` failed (exit $STATUS); see the log below and the AGENTS.md upgrade checklist"; fi
           size=$(grep 'qpdf.wasm gzip' ci.log || echo "size: not reached")
           {
