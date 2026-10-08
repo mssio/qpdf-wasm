@@ -1,4 +1,5 @@
 import { QpdfError } from "./errors.js";
+import { createProgressFilter } from "./progress.js";
 import type { JobSpec, RunResult } from "./types.js";
 import createQpdfModule, { type QpdfModule } from "./wasm/qpdf.mjs";
 
@@ -9,11 +10,26 @@ export const WORKDIR = "/work";
  * Runs one qpdf job in a brand-new module instance. qpdf keeps process-global state
  * (e.g. its logger), so an instance must never be reused for a second job.
  */
-export async function runJob(wasm: WebAssembly.Module, spec: JobSpec): Promise<RunResult> {
+export async function runJob(
+  wasm: WebAssembly.Module,
+  spec: JobSpec,
+  onProgress?: (percent: number) => void,
+): Promise<RunResult> {
   const paths = Object.keys(spec.files).map(resolvePath);
   const stdout: string[] = [];
   const stderr: string[] = [];
-  const mod = await instantiate(wasm, stdout, stderr);
+  // qpdf prints progress to stdout, or to stderr when the PDF itself goes to stdout. Without onProgress,
+  // every line is kept as before.
+  const isProgress = onProgress ? createProgressFilter(onProgress) : () => false;
+  const mod = await instantiate(
+    wasm,
+    (line) => {
+      if (!isProgress(line)) stdout.push(line);
+    },
+    (line) => {
+      if (!isProgress(line)) stderr.push(line);
+    },
+  );
 
   mod.FS.mkdir(WORKDIR);
   mod.FS.chdir(WORKDIR);
@@ -34,15 +50,19 @@ export async function runJob(wasm: WebAssembly.Module, spec: JobSpec): Promise<R
   return { exitCode, stdout: stdout.join("\n"), stderr: stderr.join("\n"), files };
 }
 
-function instantiate(wasm: WebAssembly.Module, stdout: string[], stderr: string[]): Promise<QpdfModule> {
+function instantiate(
+  wasm: WebAssembly.Module,
+  print: (line: string) => void,
+  printErr: (line: string) => void,
+): Promise<QpdfModule> {
   let fail!: (error: unknown) => void;
   const failed = new Promise<never>((_, reject) => {
     fail = reject;
   });
   const created = createQpdfModule({
     thisProgram: "qpdf",
-    print: (line) => stdout.push(line),
-    printErr: (line) => stderr.push(line),
+    print,
+    printErr,
     // Required: the glue is built for web/worker only and cannot load the wasm itself in Node.
     instantiateWasm(imports, ready) {
       WebAssembly.instantiate(wasm, imports).then((instance) => ready(instance, wasm), fail);

@@ -1,5 +1,5 @@
 import type { JobSpec, SplitOptions } from "../types.js";
-import { INPUT, jobSpec, withPassword } from "./job.js";
+import { INPUT, jobSpec, withPassword, withProgress } from "./job.js";
 
 const SPLIT_OUTPUT = /^out-(\d+)(?:-\d+)?\.pdf$/;
 
@@ -9,7 +9,7 @@ export function splitJob(input: Uint8Array, options: SplitOptions = {}): JobSpec
     throw new RangeError("split() pagesPerFile must be an integer >= 1");
   }
   const job = { inputFile: INPUT, splitPages: String(pagesPerFile), outputFile: "out-%d.pdf" };
-  return jobSpec(withPassword(job, options.password), { [INPUT]: input });
+  return jobSpec(withProgress(withPassword(job, options.password), options), { [INPUT]: input });
 }
 
 /** qpdf names split outputs out-N.pdf or out-N-M.pdf; return them in page order. */

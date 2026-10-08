@@ -1,5 +1,5 @@
 import type { JobSpec, MergeOptions } from "../types.js";
-import { inputName, jobSpec, OUTPUT } from "./job.js";
+import { inputName, jobSpec, OUTPUT, withProgress } from "./job.js";
 
 export function mergeJob(inputs: Uint8Array[], options: MergeOptions = {}): JobSpec {
   if (inputs.length === 0) throw new RangeError("merge() needs at least one input");
@@ -10,5 +10,5 @@ export function mergeJob(inputs: Uint8Array[], options: MergeOptions = {}): JobS
     const password = options.password?.[index];
     return password === undefined ? { file } : { file, password };
   });
-  return jobSpec({ empty: "", pages, outputFile: OUTPUT }, files);
+  return jobSpec(withProgress({ empty: "", pages, outputFile: OUTPUT }, options), files);
 }

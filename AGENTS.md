@@ -16,7 +16,8 @@ or inline (Node). The design source of truth is
 | `scripts/` | Host-side tooling: Docker wrapper, dist copy, package/README/size checks, `check-generated.sh` (build output committed?), browser-test helpers, `ci.sh` |
 | `src/wasm/` | Generated `qpdf.mjs`/`qpdf.wasm`/`meta.mjs` (gitignored) + committed `.d.mts` declarations |
 | `src/jobs/` | Pure functions: options → qpdf job JSON (`JobSpec`). One file per helper |
-| `src/errors.ts` | `QpdfError` and stderr classification (the only place that matches qpdf message text) |
+| `src/errors.ts` | `QpdfError`, stderr classification and the progress-line pattern (the only place that matches qpdf message text) |
+| `src/progress.ts` | Write progress: drops repeats, keeps progress lines out of output, calls `onProgress` safely |
 | `src/input.ts` | `PdfInput` → `Uint8Array` (copy/detach rules) |
 | `src/engine.ts` | Runs one `JobSpec` in a **fresh** module instance over MEMFS |
 | `src/wasm-loader.ts` | Finds and compiles `qpdf.wasm` (fetch, or `file:` in Node) |
@@ -101,9 +102,9 @@ If Dependabot reports errors for the fixture directories (their `file:` dependen
 
 ### Add a typed helper
 
-1. `src/jobs/<name>.ts`: pure builder returning a `JobSpec` via `jobSpec()`, plus a unit test in `test/unit/jobs.test.ts`. Validate the job JSON against `vendor/qpdf/libqpdf/qpdf/auto_job_schema.hh`.
+1. `src/jobs/<name>.ts`: pure builder returning a `JobSpec` via `jobSpec()`, plus a unit test in `test/unit/jobs.test.ts`. Validate the job JSON against `vendor/qpdf/libqpdf/qpdf/auto_job_schema.hh`. A helper that writes a PDF gets an options type extending `ProgressOptions` and wraps its job with `withProgress(job, options)` (like `withPassword`), so `onProgress` works for it.
 2. Add types to `src/types.ts`, the method to `Qpdf`, and the wiring in `src/api.ts`.
-3. Integration test in `test/node/api.test.ts` that verifies the output with qpdf itself.
+3. Integration test in `test/node/api.test.ts` that verifies the output with qpdf itself (and, for a writing helper, its progress; see `test/node/progress.test.ts`).
 4. Recipe `examples/<name>.mjs`, a test in `test/node/recipes.test.ts`, the recipe pasted into README, and a CHANGELOG entry.
 
 ### Cut a release
@@ -150,6 +151,7 @@ Trusted publisher on npmjs.com: `mssio` / `qpdf-wasm` / `release.yml`, environme
 - README's qpdf version sits between `<!-- qpdf-version -->` markers; `build.sh` rewrites it. Don't edit that line by hand or remove the markers.
 - Browser fixtures pin vite, webpack and webpack-cli to exact versions and install with `--ignore-scripts`; bump the pins deliberately. The webpack fixture sets `resolve.tsconfig: false`, otherwise webpack ≥ 5.106 follows the repo's `tsconfig.json` `paths` to `src/` and the tarball goes untested.
 - Workflows check out with `persist-credentials: false`; `qpdf-update.yml` hands its write token only to the push step. Keep tokens out of steps that install or run dependencies.
+- `--progress` prints to stdout, or to **stderr** when the PDF itself goes to stdout (`-`). With `onProgress` set, the engine strips progress lines from both; without it, output is untouched. Helpers request progress through job JSON (`progress: ""`), `run()` by putting `--progress` first (except when `args` is a single help option such as `--version`, which qpdf accepts only on its own; see `src/api.ts`).
 - PRs opened by the update workflow's `GITHUB_TOKEN` do not trigger `ci.yml`. The update workflow therefore runs `scripts/ci.sh` itself and reports the result in the PR body.
 
 ## Verification before claiming done

@@ -35,6 +35,14 @@ export function parseWarnings(stderr: string): string[] {
     .map((line) => line.slice(WARNING_PREFIX.length));
 }
 
+const PROGRESS_LINE = /: write progress: (\d+)%$/;
+
+/** The percent in a qpdf `--progress` line ("qpdf: out.pdf: write progress: 42%"), or null for any other line. */
+export function parseProgressLine(line: string): number | null {
+  const match = PROGRESS_LINE.exec(line);
+  return match ? Number(match[1]) : null;
+}
+
 export function failureFromResult(result: { exitCode: number; stderr: string }): QpdfError {
   const lines = result.stderr
     .split("\n")

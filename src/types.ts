@@ -33,18 +33,34 @@ export interface PasswordOptions {
   password?: string;
 }
 
-export interface MergeOptions {
+export interface ProgressOptions {
+  /**
+   * Called with qpdf's write progress, 0–100, while the job runs, on the calling thread. Values strictly increase
+   * within one output file; `split()` starts again at 0 for each file. Never called before qpdf starts writing,
+   * after the promise settles, or after `terminate()`. See README "Progress bar".
+   */
+  onProgress?: (percent: number) => void;
+}
+
+/** Options for `selectPages`, `rotate` and `linearize`. */
+export interface OutputOptions extends PasswordOptions, ProgressOptions {}
+
+export interface DecryptOptions extends ProgressOptions {
+  password: string;
+}
+
+export interface MergeOptions extends ProgressOptions {
   /** Password per input, by index. */
   password?: (string | undefined)[];
 }
 
-export interface SplitOptions {
+export interface SplitOptions extends ProgressOptions {
   /** Pages per output file. Default 1. */
   pagesPerFile?: number;
   password?: string;
 }
 
-export interface CompressOptions {
+export interface CompressOptions extends ProgressOptions {
   password?: string;
   /** Flate level 1–9. Default 9. */
   level?: number;
@@ -57,7 +73,7 @@ export interface Rotation {
   pages?: string;
 }
 
-export interface EncryptOptions {
+export interface EncryptOptions extends ProgressOptions {
   userPassword: string;
   ownerPassword: string;
   /** AES-256 (default) or AES-128. */
@@ -66,7 +82,7 @@ export interface EncryptOptions {
   allow?: { print?: boolean; modify?: boolean; extract?: boolean; annotate?: boolean };
 }
 
-export interface RunOptions {
+export interface RunOptions extends ProgressOptions {
   /** Files to place in qpdf's working directory before the run, by relative path. */
   files?: Record<string, PdfInput>;
 }
@@ -82,11 +98,11 @@ export interface RunResult {
 export interface Qpdf {
   merge(inputs: PdfInput[], options?: MergeOptions): Promise<QpdfResult>;
   split(input: PdfInput, options?: SplitOptions): Promise<SplitResult>;
-  selectPages(input: PdfInput, ranges: string, options?: PasswordOptions): Promise<QpdfResult>;
-  rotate(input: PdfInput, rotations: Rotation[], options?: PasswordOptions): Promise<QpdfResult>;
+  selectPages(input: PdfInput, ranges: string, options?: OutputOptions): Promise<QpdfResult>;
+  rotate(input: PdfInput, rotations: Rotation[], options?: OutputOptions): Promise<QpdfResult>;
   encrypt(input: PdfInput, options: EncryptOptions): Promise<QpdfResult>;
-  decrypt(input: PdfInput, options: { password: string }): Promise<QpdfResult>;
-  linearize(input: PdfInput, options?: PasswordOptions): Promise<QpdfResult>;
+  decrypt(input: PdfInput, options: DecryptOptions): Promise<QpdfResult>;
+  linearize(input: PdfInput, options?: OutputOptions): Promise<QpdfResult>;
   compress(input: PdfInput, options?: CompressOptions): Promise<QpdfResult>;
   info(input: PdfInput, options?: PasswordOptions): Promise<PdfInfo>;
   /** Raw qpdf CLI. Never rejects for qpdf exit codes; inspect `exitCode`. */
@@ -103,6 +119,7 @@ export interface JobSpec {
 
 /** Internal: runs JobSpecs somewhere (calling thread or workers). */
 export interface Executor {
-  exec(spec: JobSpec): Promise<RunResult>;
+  /** `onProgress` receives qpdf's write progress while the job runs (see src/progress.ts). */
+  exec(spec: JobSpec, onProgress?: (percent: number) => void): Promise<RunResult>;
   terminate(): void;
 }

@@ -1,5 +1,5 @@
 import type { CompressOptions, JobSpec } from "../types.js";
-import { INPUT, jobSpec, OUTPUT, withPassword } from "./job.js";
+import { INPUT, jobSpec, OUTPUT, withPassword, withProgress } from "./job.js";
 
 export function compressJob(input: Uint8Array, options: CompressOptions = {}): JobSpec {
   const level = options.level ?? 9;
@@ -11,5 +11,5 @@ export function compressJob(input: Uint8Array, options: CompressOptions = {}): J
     compressionLevel: String(level),
     outputFile: OUTPUT,
   };
-  return jobSpec(withPassword(job, options.password), { [INPUT]: input });
+  return jobSpec(withProgress(withPassword(job, options.password), options), { [INPUT]: input });
 }

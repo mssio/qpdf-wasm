@@ -19,5 +19,6 @@ for app in vite-app webpack-app; do
   dir="$ROOT/test/browser/fixtures/$app"
   rm -rf "$dir/node_modules/@mssio" "$dir/node_modules/.vite"
   cp "$ROOT/test/browser/smoke.js" "$dir/smoke.js"
+  cp "$ROOT/test/browser/image-heavy-pdf.js" "$dir/image-heavy-pdf.js"
   (cd "$dir" && npm install --ignore-scripts --no-package-lock --no-audit --no-fund && npm run build)
 done

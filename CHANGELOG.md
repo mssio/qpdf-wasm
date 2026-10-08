@@ -3,6 +3,14 @@
 All notable changes to `@mssio/qpdf-wasm`. Versions follow semver independently of qpdf;
 each entry states the bundled qpdf version.
 
+## 1.1.0 — 2026-10-08
+
+- **Progress:** `merge`, `split`, `selectPages`, `rotate`, `encrypt`, `decrypt`, `linearize`, `compress` and `run()`
+  accept `onProgress?: (percent: number) => void`, called with qpdf's write progress while the job runs. See README
+  "Progress bar". `info()` does not take it (it never writes a PDF).
+- New exported types: `ProgressOptions`, `OutputOptions`, `DecryptOptions`. Existing calls compile and behave as before.
+- Bundles qpdf 12.4.2 (unmodified), built with Emscripten 6.0.11.
+
 ## 1.0.0 — 2026-10-06
 
 - **Stable API.** From 1.0.0 this package follows semver for its public API; see README "Versioning".

@@ -1,6 +1,7 @@
-import type { JobSpec, PasswordOptions } from "../types.js";
-import { INPUT, jobSpec, OUTPUT, withPassword } from "./job.js";
+import type { JobSpec, OutputOptions } from "../types.js";
+import { INPUT, jobSpec, OUTPUT, withPassword, withProgress } from "./job.js";
 
-export function linearizeJob(input: Uint8Array, options: PasswordOptions = {}): JobSpec {
-  return jobSpec(withPassword({ inputFile: INPUT, linearize: "", outputFile: OUTPUT }, options.password), { [INPUT]: input });
+export function linearizeJob(input: Uint8Array, options: OutputOptions = {}): JobSpec {
+  const job = withPassword({ inputFile: INPUT, linearize: "", outputFile: OUTPUT }, options.password);
+  return jobSpec(withProgress(job, options), { [INPUT]: input });
 }

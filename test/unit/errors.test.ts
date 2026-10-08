@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { classifyFailure, crashError, failureFromResult, parseWarnings, QpdfError, terminatedError } from "../../src/errors.js";
+import {
+  classifyFailure,
+  crashError,
+  failureFromResult,
+  parseProgressLine,
+  parseWarnings,
+  QpdfError,
+  terminatedError,
+} from "../../src/errors.js";
 
 // Real stderr captured from qpdf 12.4.2 (spike, 2026-10-05).
 const WRONG_PASSWORD = "qpdf: in.pdf: invalid password";
@@ -81,5 +89,19 @@ describe("crashError", () => {
     expect(wrapped.code).toBe("FAILED");
     expect(wrapped.message).toBe("qpdf crashed: memory access out of bounds");
     expect(crashError("boom").message).toBe("qpdf crashed: boom");
+  });
+});
+
+describe("parseProgressLine", () => {
+  it("reads the percent from qpdf's --progress lines", () => {
+    expect(parseProgressLine("qpdf: out.pdf: write progress: 0%")).toBe(0);
+    expect(parseProgressLine("qpdf: out.pdf: write progress: 100%")).toBe(100);
+    expect(parseProgressLine("qpdf: standard output: write progress: 42%")).toBe(42);
+  });
+  it("returns null for any other line", () => {
+    expect(parseProgressLine("checking in.pdf")).toBeNull();
+    expect(parseProgressLine("WARNING: in.pdf: file is damaged")).toBeNull();
+    expect(parseProgressLine("qpdf: out.pdf: write progress: 42% done")).toBeNull();
+    expect(parseProgressLine("")).toBeNull();
   });
 });
