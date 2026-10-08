@@ -6,6 +6,7 @@ import { protectPdf } from "../../examples/encrypt.mjs";
 import { describePdf } from "../../examples/info.mjs";
 import { optimizeForWeb } from "../../examples/linearize.mjs";
 import { mergePdfs } from "../../examples/merge.mjs";
+import { compressWithProgressBar } from "../../examples/progress.mjs";
 import { rotateFirstPage } from "../../examples/rotate.mjs";
 import { checkPdf } from "../../examples/run.mjs";
 import { extractPages } from "../../examples/select-pages.mjs";
@@ -22,6 +23,24 @@ const pageCount = async (bytes: Uint8Array) => {
 };
 
 describe("README recipes", () => {
+  it("progress bar", async () => {
+    const events: (number | "indeterminate")[] = [];
+    const bar = {
+      max: 1,
+      removeAttribute: (name: string) => {
+        if (name === "value") events.push("indeterminate");
+      },
+      set value(percent: number) {
+        events.push(percent);
+      },
+    };
+    const output = await compressWithProgressBar(await fixture("shared-form-images.pdf"), bar);
+    expect(events[0]).toBe("indeterminate");
+    expect(events[1]).toBe(0);
+    expect(events.at(-1)).toBe(100);
+    expect(bar.max).toBe(100);
+    expect(await pageCount(output)).toBe(6);
+  });
   it("merge", async () => {
     const blob = await mergePdfs([await fixture("form.pdf"), await fixture("shared-form-images.pdf")]);
     expect(blob.type).toBe("application/pdf");

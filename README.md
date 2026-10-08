@@ -213,6 +213,47 @@ export async function describePdf(file) {
 }
 ```
 
+### Progress bar
+
+<!-- examples/progress.mjs -->
+```js
+import { createQpdf } from "@mssio/qpdf-wasm";
+
+// `bar` is a <progress> element.
+export async function compressWithProgressBar(file, bar) {
+  const qpdf = await createQpdf();
+  try {
+    bar.removeAttribute("value"); // indeterminate until qpdf starts writing
+    const { output } = await qpdf.compress(file, {
+      onProgress: (percent) => {
+        bar.max = 100;
+        bar.value = percent;
+      },
+    });
+    return output;
+  } finally {
+    qpdf.terminate();
+  }
+}
+```
+
+Every method except `info()` takes `onProgress`, and so does `run()`. qpdf calls it while it **writes** the output:
+
+- Values are integers from 0 to 100 that strictly increase within one output file (linearize's first value can be
+  above 0). Each new value is passed on at once, never batched (at most 101 calls per file).
+- There are no calls before qpdf starts writing (reading the input, copying pages). For PDFs with many small objects
+  that can be most of the job, so show an indeterminate state until the first call.
+- 100% means qpdf finished writing that output, not that your work is done. If you run more qpdf calls afterwards
+  (or before, like a password check), show a short "Finishing…" state instead of a bar stuck at 100%.
+- `split()` starts again at 0 for each output file.
+- `run()` reports progress only for commands that write a PDF; `--check`, `--json`, a sole help option such as
+  `--version`, and similar never call it.
+- No calls after the promise settles or after `terminate()`. If the callback throws, the job continues and the
+  error is rethrown asynchronously.
+- With `inline: true` in a browser, qpdf runs on the main thread, so the page can't repaint between calls.
+- To detect a stuck job, keep a size-based time limit until the first call, then fail only when no call has
+  arrived for a while (we suggest 30 s: one percent can take seconds on a phone).
+
 ### Any qpdf command
 
 <!-- examples/run.mjs -->
@@ -323,19 +364,20 @@ export const qpdf = await createQpdf(); // module-level singleton
 
 All inputs accept `Uint8Array | ArrayBuffer | Blob` (including `File`). All outputs are `Uint8Array`.
 `warnings` lists qpdf warnings when qpdf succeeded with warnings (e.g. a repaired damaged file).
+`onProgress(percent)` reports write progress; see [Progress bar](#progress-bar).
 
 | Method | Returns |
 |---|---|
-| `merge(inputs, { password?: (string \| undefined)[] })` | `{ output, warnings }` |
-| `split(input, { pagesPerFile? = 1, password? })` | `{ outputs, warnings }` in page order |
-| `selectPages(input, ranges, { password? })` | `{ output, warnings }`. `ranges` uses [qpdf page-range syntax](https://qpdf.readthedocs.io/en/stable/cli.html#page-ranges): `"1-3,7,z"` |
-| `rotate(input, [{ angle: 90 \| 180 \| 270 \| -90, pages? = "1-z" }], { password? })` | `{ output, warnings }`. Adds to the current rotation |
-| `encrypt(input, { userPassword, ownerPassword, bits? = 256 \| 128, allow?: { print?, modify?, extract?, annotate? } })` | `{ output, warnings }`. AES. Anything not set to `false` stays allowed |
-| `decrypt(input, { password })` | `{ output, warnings }` |
-| `linearize(input, { password? })` | `{ output, warnings }` |
-| `compress(input, { level? = 9, password? })` | `{ output, warnings }`. Object streams + recompressed streams |
+| `merge(inputs, { password?: (string \| undefined)[], onProgress? })` | `{ output, warnings }` |
+| `split(input, { pagesPerFile? = 1, password?, onProgress? })` | `{ outputs, warnings }` in page order |
+| `selectPages(input, ranges, { password?, onProgress? })` | `{ output, warnings }`. `ranges` uses [qpdf page-range syntax](https://qpdf.readthedocs.io/en/stable/cli.html#page-ranges): `"1-3,7,z"` |
+| `rotate(input, [{ angle: 90 \| 180 \| 270 \| -90, pages? = "1-z" }], { password?, onProgress? })` | `{ output, warnings }`. Adds to the current rotation |
+| `encrypt(input, { userPassword, ownerPassword, bits? = 256 \| 128, allow?: { print?, modify?, extract?, annotate? }, onProgress? })` | `{ output, warnings }`. AES. Anything not set to `false` stays allowed |
+| `decrypt(input, { password, onProgress? })` | `{ output, warnings }` |
+| `linearize(input, { password?, onProgress? })` | `{ output, warnings }` |
+| `compress(input, { level? = 9, password?, onProgress? })` | `{ output, warnings }`. Object streams + recompressed streams |
 | `info(input, { password? })` | `{ pdfVersion, pageCount, encrypted, warnings }` |
-| `run(args, { files? })` | `{ exitCode, stdout, stderr, files }`. Raw qpdf CLI; never rejects for qpdf exit codes. `files` are written to qpdf's working directory; the result's `files` holds every file the run created there |
+| `run(args, { files?, onProgress? })` | `{ exitCode, stdout, stderr, files }`. Raw qpdf CLI; never rejects for qpdf exit codes. `files` are written to qpdf's working directory; the result's `files` holds every file the run created there. With `onProgress`, qpdf's progress lines are kept out of `stdout`/`stderr` |
 | `terminate()` | Stops workers; pending and later calls reject with `TERMINATED` |
 
 `qpdfVersion` (string) is the bundled qpdf version.
