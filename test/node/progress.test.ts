@@ -68,6 +68,44 @@ describe("onProgress (inline)", () => {
     runs.forEach(expectRising);
   });
 
+  it("keeps linearized split outputs after the first (they start above 0)", async () => {
+    const { percents, onProgress } = recorder();
+    const result = await qpdf.run(["in.pdf", "--split-pages=2", "--linearize", "s-%d.pdf"], {
+      files: { "in.pdf": imageHeavyPdf(6, 300) },
+      onProgress,
+    });
+    expect(result.exitCode).toBe(0);
+    expect(Object.keys(result.files)).toHaveLength(3);
+    const runs: number[][] = [];
+    percents.forEach((percent, index) => {
+      if (index === 0 || percent < percents[index - 1]!) runs.push([]);
+      runs.at(-1)!.push(percent);
+    });
+    expect(runs).toHaveLength(3);
+    runs.forEach(expectIncreasingTo100);
+  });
+
+  it("leaves a sole help option alone: no --progress is prepended", async () => {
+    const onProgress = vi.fn();
+    const result = await qpdf.run(["--version"], { onProgress });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatch(/qpdf version/);
+    expect(onProgress).not.toHaveBeenCalled();
+  });
+
+  it("still reports progress for a sole --job-json-file", async () => {
+    const { percents, onProgress } = recorder();
+    const result = await qpdf.run(["--job-json-file=job.json"], {
+      files: {
+        "in.pdf": await fixture("form.pdf"),
+        "job.json": new TextEncoder().encode(JSON.stringify({ inputFile: "in.pdf", outputFile: "out.pdf" })),
+      },
+      onProgress,
+    });
+    expect(result.exitCode).toBe(0);
+    expectRising(percents);
+  });
+
   it("keeps progress lines out of run()'s stdout and stderr", async () => {
     const { percents, onProgress } = recorder();
     const result = await qpdf.run(["--encrypt", "u", "o", "256", "--", "in.pdf", "out.pdf"], {
@@ -160,6 +198,26 @@ describe("onProgress (inline)", () => {
 });
 
 describe("onProgress (worker protocol, real wasm)", () => {
+  it("posts no progress messages when onProgress is not set (1.0.0 behaviour)", async () => {
+    const worker = new FakeWorker();
+    const types: string[] = [];
+    const pooled = createQpdfApi(
+      await createWorkerPool({ size: 1, wasmUrl: defaultWasmUrl().href, spawn: () => worker }),
+    );
+    try {
+      const original = worker.onmessage!;
+      worker.onmessage = (event) => {
+        types.push(event.data.type);
+        original(event);
+      };
+      await pooled.encrypt(big.slice(), { userPassword: "u", ownerPassword: "o" });
+      expect(types).toContain("result");
+      expect(types).not.toContain("progress");
+    } finally {
+      pooled.terminate();
+    }
+  });
+
   it("streams encrypt progress from the worker, all before the result", async () => {
     const pooled = createQpdfApi(
       await createWorkerPool({ size: 1, wasmUrl: defaultWasmUrl().href, spawn: () => new FakeWorker() }),

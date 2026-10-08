@@ -56,7 +56,11 @@ export function createQpdfApi(executor: Executor): Qpdf {
         Object.entries(options.files ?? {}).map(async ([name, data]: [string, PdfInput]) => [name, await toBytes(data)] as const),
       );
       // --progress goes first, before any `--pages … --`. Without onProgress, args pass through untouched.
-      const argv = options.onProgress === undefined ? args : ["--progress", ...args];
+      // qpdf accepts its help options (--version, --help, --copyright, ...) only as the sole argument, so a
+      // sole `--…` argument is left alone (they write no PDF; onProgress never fires). A sole
+      // `--job-json-file=…` or `@argfile` still writes a PDF and keeps --progress.
+      const soleHelpOption = args.length === 1 && args[0]!.startsWith("--") && !args[0]!.startsWith("--job-json-file");
+      const argv = options.onProgress === undefined || soleHelpOption ? args : ["--progress", ...args];
       return executor.exec({ args: argv, files: Object.fromEntries(entries) }, options.onProgress);
     },
     terminate: () => executor.terminate(),

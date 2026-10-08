@@ -31,6 +31,9 @@ describe("createProgressFilter", () => {
   it("starts again at 0 for the next split output file, but not on a repeated 0", () => {
     expect(feed([0, 60, 100, 0, 100, 0, 0, 100].map(line)).percents).toEqual([0, 60, 100, 0, 100, 0, 100]);
   });
+  it("continues a linearized split: a drop that does not reach 0 starts the next output file", () => {
+    expect(feed([25, 50, 50, 100, 25, 50, 100].map(line)).percents).toEqual([25, 50, 100, 25, 50, 100]);
+  });
   it("reads the stderr form qpdf uses when the PDF goes to stdout", () => {
     expect(feed(["qpdf: standard output: write progress: 7%"]).percents).toEqual([7]);
   });

@@ -68,7 +68,7 @@ All additions are optional, so 1.0.0 code compiles and runs unchanged.
 
 ```ts
 export interface ProgressOptions {
-  /** Write progress, 0–100, called on the calling thread while qpdf writes. See README "Progress". */
+  /** Write progress, 0–100, called on the calling thread while qpdf writes. See README "Progress bar". */
   onProgress?: (percent: number) => void;
 }
 /** Options for selectPages, rotate and linearize. */
@@ -105,6 +105,9 @@ export interface DecryptOptions extends ProgressOptions {
   It adds `progress: ""` when `options.onProgress` is set. Each writing builder applies it. `infoJob` does not.
 - **`run()`**: when `onProgress` is set, `--progress` is put **first** in the arguments (before any `--pages … --`).
   Without `onProgress`, `args` are passed through untouched, so a caller's own `--progress` lines stay in `stdout`.
+  Exception: qpdf takes its help options (`--version`, `--help`, ...) only as the sole argument. When `args` is
+  exactly one argument starting with `--` (but not `--job-json-file`), nothing is prepended; `onProgress` never fires.
+  A sole `--job-json-file=…` or `@argfile` still writes a PDF and keeps `--progress`.
 
 ### 4.2 Recognizing lines — `src/progress.ts` (new, pure)
 
@@ -117,8 +120,8 @@ export function callSafely(fn: (percent: number) => void, percent: number): void
 
 - Uses `parseProgressLine` from `src/errors.ts`, which matches `/: write progress: (\d+)%$/` (hard rule 6: qpdf
   message text is matched only there).
-- Reports `p` when `p > last`, or when `p === 0` and `last !== 0` (a new split output file starts). Otherwise
-  consumes the line silently (repeats).
+- Reports `p` whenever `p !== last`: a rise continues the output file, a drop starts the next one (a linearized
+  file starts above 0). Repeats are consumed silently.
 
 ### 4.3 Engine — `src/engine.ts`
 
@@ -183,7 +186,7 @@ promise resolved (values streamed instead of arriving in one batch at the end).
 ## 6. Documentation and release
 
 - **README:**
-  - new "Progress" section with recipe `examples/progress.mjs` (embedded verbatim, `check:readme`);
+  - new "Progress bar" section with recipe `examples/progress.mjs` (embedded verbatim, `check:readme`);
   - API table: new option on each method;
   - the caveats in §7.
 - **CHANGELOG:** `## 1.1.0 — <date>`: adds `onProgress`; bundles qpdf 12.4.2 (unchanged).

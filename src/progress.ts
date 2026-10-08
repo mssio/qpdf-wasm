@@ -2,15 +2,16 @@ import { parseProgressLine } from "./errors.js";
 
 /**
  * A line handler for qpdf's stdout/stderr: returns true when the line was a progress line (consumed).
- * Reports each percent once, rising. qpdf repeats values (encrypt, linearize) and starts again at 0
- * for each split output file.
+ * Reports `p` whenever `p !== last`. Within one output file qpdf's values never decrease, so a rise
+ * continues the file and a drop starts the next split output file (a linearized one starts above 0).
+ * qpdf repeats values (encrypt, linearize); repeats are consumed silently.
  */
 export function createProgressFilter(onPercent: (percent: number) => void): (line: string) => boolean {
   let last = -1;
   return (line) => {
     const percent = parseProgressLine(line);
     if (percent === null) return false;
-    if (percent > last || (percent === 0 && last !== 0)) {
+    if (percent !== last) {
       last = percent;
       onPercent(percent);
     }
