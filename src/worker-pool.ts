@@ -1,6 +1,7 @@
 import { QpdfError, terminatedError } from "./errors.js";
 import type { FromWorker, ToWorker } from "./protocol.js";
 import { assertNotDetached } from "./input.js";
+import { callSafely } from "./progress.js";
 import { transferablesOf } from "./transfer.js";
 import type { Executor, JobSpec, RunResult } from "./types.js";
 
@@ -23,6 +24,7 @@ export interface WorkerPoolOptions {
 interface Pending {
   id: number;
   spec: JobSpec;
+  onProgress: ((percent: number) => void) | undefined;
   resolve(result: RunResult): void;
   reject(error: unknown): void;
 }
@@ -69,6 +71,10 @@ export async function createWorkerPool(options: WorkerPoolOptions): Promise<Exec
           dispatch();
         } else if (data.type === "init-error") {
           failStart(data.message);
+        } else if (data.type === "progress") {
+          // Only the job on this slot right now: a settled or terminated job has `current` cleared or replaced.
+          const job = slot.current;
+          if (job?.id === data.id && job.onProgress) callSafely(job.onProgress, data.percent);
         } else if (data.type === "result") {
           settle(slot, (job) => job.resolve(data.result));
         } else {
@@ -120,7 +126,10 @@ export async function createWorkerPool(options: WorkerPoolOptions): Promise<Exec
         slot.current = job;
         try {
           for (const bytes of Object.values(job.spec.files)) assertNotDetached(bytes.buffer);
-          slot.worker.postMessage({ type: "job", id: job.id, spec: job.spec }, transferablesOf(job.spec.files));
+          slot.worker.postMessage(
+            { type: "job", id: job.id, spec: job.spec, progress: job.onProgress !== undefined },
+            transferablesOf(job.spec.files),
+          );
         } catch (error) {
           slot.current = null;
           job.reject(
@@ -145,11 +154,11 @@ export async function createWorkerPool(options: WorkerPoolOptions): Promise<Exec
   }
 
   return {
-    exec(spec) {
+    exec(spec, onProgress) {
       if (terminated) return Promise.reject(terminatedError());
       if (slots.length === 0) return Promise.reject(new QpdfError("FAILED", "no qpdf workers are available"));
       return new Promise<RunResult>((resolve, reject) => {
-        queue.push({ id: nextId++, spec, resolve, reject });
+        queue.push({ id: nextId++, spec, onProgress, resolve, reject });
         dispatch();
       });
     },

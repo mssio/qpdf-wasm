@@ -1,7 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { createQpdfApi } from "../../src/api.js";
 import { createQpdf, type Qpdf } from "../../src/index.js";
+import { defaultWasmUrl } from "../../src/wasm-loader.js";
+import { createWorkerPool } from "../../src/worker-pool.js";
 import { imageHeavyPdf } from "../browser/image-heavy-pdf.js";
 import { fixture } from "../helpers.js";
+import { FakeWorker } from "../unit/fake-worker.js";
 
 let qpdf: Qpdf;
 /** 20 pages, ~9.8 MB: qpdf reports ~60 distinct percents while encrypting it. */
@@ -152,5 +156,28 @@ describe("onProgress (inline)", () => {
     });
     expect(percents.at(-1)).toBeGreaterThanOrEqual(10);
     expect(percents.filter((percent) => percent >= 10)).toHaveLength(1);
+  });
+});
+
+describe("onProgress (worker protocol, real wasm)", () => {
+  it("streams encrypt progress from the worker, all before the result", async () => {
+    const pooled = createQpdfApi(
+      await createWorkerPool({ size: 1, wasmUrl: defaultWasmUrl().href, spawn: () => new FakeWorker() }),
+    );
+    try {
+      const { percents, onProgress } = recorder();
+      let atSettle = -1;
+      await pooled
+        .encrypt(big.slice(), { userPassword: "u", ownerPassword: "o", onProgress })
+        .then(() => {
+          atSettle = percents.length;
+        });
+      await new Promise((resolve) => setTimeout(resolve, 50)); // let any stray message arrive
+      expect(percents.length).toBe(atSettle);
+      expectRising(percents);
+      expect(percents.length).toBeGreaterThanOrEqual(50);
+    } finally {
+      pooled.terminate();
+    }
   });
 });
