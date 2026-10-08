@@ -249,10 +249,14 @@ Every method except `info()` takes `onProgress`, and so does `run()`. qpdf calls
 - `run()` reports progress only for commands that write a PDF; `--check`, `--json`, a sole help option such as
   `--version`, and similar never call it.
 - No calls after the promise settles or after `terminate()`. If the callback throws, the job continues and the
-  error is rethrown asynchronously.
-- With `inline: true` in a browser, qpdf runs on the main thread, so the page can't repaint between calls.
+  error is rethrown asynchronously (in Node, as an uncaught exception).
+- With `inline: true` (the default in Node), qpdf runs on the calling thread: a page can't repaint between calls, and
+  async work the callback starts (such as sending to a socket) runs only after the job ends. For live progress in
+  Node, run qpdf in a `worker_threads` worker.
 - To detect a stuck job, keep a size-based time limit until the first call, then fail only when no call has
   arrived for a while (we suggest 30 s: one percent can take seconds on a phone).
+- Calls for a job keep coming until it settles, even if your UI has moved on (a job can't be cancelled, only the whole
+  instance `terminate()`d). Ignore calls from a job you no longer show, for example by comparing a job counter.
 
 ### Any qpdf command
 

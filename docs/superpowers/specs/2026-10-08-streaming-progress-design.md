@@ -115,7 +115,7 @@ export interface DecryptOptions extends ProgressOptions {
 /** Returns a line handler: true when the line was a progress line (consumed), false otherwise. */
 export function createProgressFilter(onPercent: (percent: number) => void): (line: string) => boolean;
 /** Calls fn; a throw is rethrown asynchronously so it cannot abort qpdf or the pool. */
-export function callSafely(fn: (percent: number) => void, percent: number): void;
+export function callSafely(callback: (percent: number) => void, percent: number): void;
 ```
 
 - Uses `parseProgressLine` from `src/errors.ts`, which matches `/: write progress: (\d+)%$/` (hard rule 6: qpdf
