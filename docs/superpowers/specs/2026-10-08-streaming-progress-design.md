@@ -55,6 +55,8 @@ pdf.mss.io (`mssio/pdf-mss-io`, `docs/todo.md` "Real progress bar").
 | | merge (2 inputs) | 6269 ms | 1924 ms | 8753 ms |
 | | selectPages | 4700 ms | 203 ms | 5022 ms |
 
+Longest gap between two percents: 482 ms, compress, 36.5 MB object-heavy. (The 30 MB image-heavy compress: 21 ms.)
+
 For image-heavy files the bar moves for nearly the whole job. For object-heavy files most of the time passes before
 0%. §7 tells callers how to handle that.
 
@@ -195,9 +197,9 @@ promise resolved (values streamed instead of arriving in one batch at the end).
   before or after (a password check before, `info()` on the output after). Show a short "Finishing…" state after
   100% instead of a bar stuck at 100%.
 - Stuck-job limit: before the first call, keep the existing size-based time limit. After the first call, reset a
-  stall timer on every call and fail only when no call has arrived for N seconds. Suggested N: 30 s. One large stream
-  can hold a single percent for a long time: 482 ms on desktop for compress (§2), several times that on phones. 30 s
-  leaves a wide margin above that.
+  stall timer on every call and fail only when no call has arrived for N seconds. Suggested N: 30 s. A single percent
+  can take a long time: up to 482 ms on desktop for compress (§2), several times that on phones. 30 s leaves a wide
+  margin above that.
 - `split()`: the percent is for the current output file.
 - `inline: true` in a browser runs qpdf on the main thread, so the page cannot repaint between calls.
 - Drop calls from a job the UI no longer shows (pdf-mss-io: the `generation` check in `useQpdfJob`).
