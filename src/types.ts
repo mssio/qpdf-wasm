@@ -119,6 +119,7 @@ export interface JobSpec {
 
 /** Internal: runs JobSpecs somewhere (calling thread or workers). */
 export interface Executor {
-  exec(spec: JobSpec): Promise<RunResult>;
+  /** `onProgress` receives qpdf's write progress while the job runs (see src/progress.ts). */
+  exec(spec: JobSpec, onProgress?: (percent: number) => void): Promise<RunResult>;
   terminate(): void;
 }

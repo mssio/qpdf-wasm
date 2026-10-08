@@ -44,7 +44,8 @@ pdf.mss.io (`mssio/pdf-mss-io`, `docs/todo.md` "Real progress bar").
   is still running.
 - Values rise from 0 to 100 but can skip and repeat: encrypt `0,2,2,3,3,…` or `0,4,5,7,…` depending on the object
   count, linearize `…,49,50,50,50,51,51,…,99,99,100`. `split()` writes one `0…100` sequence per output file, and
-  every line names the pattern (`out.pdf`), not the actual file.
+  every line names the pattern (`out.pdf`), not the actual file. Linearize can start above 0 (2% on a 20-page
+  image-heavy file): qpdf reports half of its analysis percentage, from the first analysis value.
 
 ### Where the time goes (Node, desktop)
 
