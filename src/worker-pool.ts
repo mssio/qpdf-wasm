@@ -108,6 +108,7 @@ export async function createWorkerPool(options: WorkerPoolOptions): Promise<Exec
 
   function crash(slot: Slot, event: unknown): void {
     const job = slot.current;
+    slot.current = null;
     removeSlot(slot);
     job?.reject(new QpdfError("FAILED", `qpdf worker crashed: ${describe(event)}`));
     if (terminated) return;

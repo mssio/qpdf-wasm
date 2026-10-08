@@ -137,4 +137,18 @@ describe("worker pool progress", () => {
       pool.terminate();
     }
   });
+
+  it("ignores progress from a crashed worker", async () => {
+    const { pool, workers } = await setup();
+    const crashed = workers[0]!;
+    const calls: number[] = [];
+    const job = pool.exec(spec(), (percent) => calls.push(percent));
+    const id = crashed.jobs[0]!.id;
+    crashed.emit({ type: "progress", id, percent: 1 });
+    crashed.onerror?.({ message: "x" });
+    await expect(job).rejects.toMatchObject({ code: "FAILED" });
+    crashed.emit({ type: "progress", id, percent: 5 });
+    expect(calls).toEqual([1]);
+    pool.terminate();
+  });
 });
