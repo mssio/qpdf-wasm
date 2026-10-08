@@ -1,4 +1,5 @@
 import { createQpdf, qpdfVersion } from "@mssio/qpdf-wasm";
+import { imageHeavyPdf } from "./image-heavy-pdf.js";
 
 const load = async (name) => new Uint8Array(await (await fetch(`/${name}`)).arrayBuffer());
 
@@ -32,6 +33,16 @@ export async function smoke() {
       () => "none",
       (error) => error.code,
     );
+    // Streaming progress: a ~30 MB image-heavy PDF, where qpdf spends nearly the whole job writing.
+    const big = imageHeavyPdf(60);
+    const progress = [];
+    const progressStarted = performance.now();
+    await qpdf.encrypt(big, {
+      userPassword: "u",
+      ownerPassword: "o",
+      onProgress: (percent) => progress.push({ percent, at: performance.now() - progressStarted }),
+    });
+    const progressJobMs = performance.now() - progressStarted;
     return {
       qpdfVersion,
       repeatedPages: (await qpdf.info(linearized.output)).pageCount,
@@ -41,6 +52,9 @@ export async function smoke() {
       wrongPasswordCode,
       jobMs,
       maxFrameGapMs,
+      progressPercents: progress.map((p) => p.percent),
+      firstProgressMs: progress[0]?.at ?? -1,
+      progressJobMs,
     };
   } finally {
     qpdf.terminate();

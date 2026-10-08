@@ -22,6 +22,9 @@ interface SmokeResult {
   wrongPasswordCode: string;
   jobMs: number;
   maxFrameGapMs: number;
+  progressPercents: number[];
+  firstProgressMs: number;
+  progressJobMs: number;
 }
 
 for (const app of apps) {
@@ -62,6 +65,18 @@ for (const app of apps) {
     // already proves the job ran off the main thread in every browser.
     if (browserName !== "webkit" && r.jobMs > 300) {
       expect(r.maxFrameGapMs, `jobMs=${Math.round(r.jobMs)}`).toBeLessThan(250);
+    }
+
+    // Streaming progress (spec §3): 0 first, 100 last, strictly increasing, from a large encrypt.
+    const percents = r.progressPercents;
+    expect(percents[0]).toBe(0);
+    expect(percents.at(-1)).toBe(100);
+    expect(percents.every((p, i) => Number.isInteger(p) && (i === 0 || p > percents[i - 1]!))).toBe(true);
+    expect(percents.length).toBeGreaterThanOrEqual(50);
+    // Values arrived while the worker ran, not in one batch at the end. This relies on calls not being
+    // throttled or batched (spec §3, guarantee 7). Only meaningful when the job was long enough to measure.
+    if (r.progressJobMs > 300) {
+      expect(r.firstProgressMs, `progressJobMs=${Math.round(r.progressJobMs)}`).toBeLessThan(r.progressJobMs * 0.75);
     }
   });
 }
