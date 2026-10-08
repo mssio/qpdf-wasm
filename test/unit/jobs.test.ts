@@ -9,7 +9,7 @@ import { mergeJob } from "../../src/jobs/merge.js";
 import { rotateJob } from "../../src/jobs/rotate.js";
 import { selectPagesJob } from "../../src/jobs/select-pages.js";
 import { collectSplitOutputs, splitJob } from "../../src/jobs/split.js";
-import type { JobSpec } from "../../src/types.js";
+import type { JobSpec, ProgressOptions } from "../../src/types.js";
 
 const A = new Uint8Array([1]);
 const B = new Uint8Array([2]);
@@ -168,5 +168,38 @@ describe("infoJob / parseInfo", () => {
       qpdf: [{ jsonversion: 2, pdfversion: "1.7" }, { trailer: {} }],
     });
     expect(parseInfo(stdout)).toEqual({ pdfVersion: "1.7", pageCount: 3, encrypted: true });
+  });
+});
+
+describe("progress in every writing builder", () => {
+  const onProgress = () => {};
+  const builders: Record<string, (options: ProgressOptions) => JobSpec> = {
+    merge: (options) => mergeJob([A, B], options),
+    split: (options) => splitJob(A, options),
+    selectPages: (options) => selectPagesJob(A, "1", options),
+    rotate: (options) => rotateJob(A, [{ angle: 90 }], options),
+    encrypt: (options) => encryptJob(A, { userPassword: "u", ownerPassword: "o", ...options }),
+    decrypt: (options) => decryptJob(A, { password: "pw", ...options }),
+    linearize: (options) => linearizeJob(A, options),
+    compress: (options) => compressJob(A, options),
+  };
+  for (const [name, build] of Object.entries(builders)) {
+    it(`${name}: asks qpdf for progress only when onProgress is set`, () => {
+      expect(jobOf(build({ onProgress }))).toHaveProperty("progress", "");
+      expect(jobOf(build({}))).not.toHaveProperty("progress");
+      expect(jobOf(build({ onProgress: undefined }))).not.toHaveProperty("progress");
+    });
+  }
+  it("keeps the password next to progress", () => {
+    expect(jobOf(linearizeJob(A, { password: "pw", onProgress }))).toEqual({
+      inputFile: "in.pdf",
+      linearize: "",
+      outputFile: "out.pdf",
+      password: "pw",
+      progress: "",
+    });
+  });
+  it("info never asks for progress", () => {
+    expect(jobOf(infoJob(A))).not.toHaveProperty("progress");
   });
 });

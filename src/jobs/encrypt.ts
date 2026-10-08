@@ -1,5 +1,5 @@
 import type { EncryptOptions, JobSpec } from "../types.js";
-import { INPUT, jobSpec, OUTPUT } from "./job.js";
+import { INPUT, jobSpec, OUTPUT, withProgress } from "./job.js";
 
 export function encryptJob(input: Uint8Array, options: EncryptOptions): JobSpec {
   const bits = options.bits ?? 256;
@@ -15,5 +15,5 @@ export function encryptJob(input: Uint8Array, options: EncryptOptions): JobSpec 
     encrypt: { userPassword: options.userPassword, ownerPassword: options.ownerPassword, [`${bits}bit`]: restrictions },
     outputFile: OUTPUT,
   };
-  return jobSpec(job, { [INPUT]: input });
+  return jobSpec(withProgress(job, options), { [INPUT]: input });
 }
