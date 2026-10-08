@@ -42,8 +42,9 @@ pdf.mss.io (`mssio/pdf-mss-io`, `docs/todo.md` "Real progress bar").
 - Emscripten's `print`/`printErr` receive each line as qpdf writes it (encrypt of a 2.7 MB file: lines between 145 and
   196 ms, not batched at exit). In a worker, `postMessage` from inside that callback reaches the main thread while qpdf
   is still running.
-- Values: normally `0,1,2,…,100`. Linearize repeats values (`…,49,50,50,50,51,51,…,99,99,100`). `split()` writes
-  one `0…100` sequence per output file, and every line names the pattern (`out.pdf`), not the actual file.
+- Values rise from 0 to 100 but can skip and repeat: encrypt `0,2,2,3,3,…` or `0,4,5,7,…` depending on the object
+  count, linearize `…,49,50,50,50,51,51,…,99,99,100`. `split()` writes one `0…100` sequence per output file, and
+  every line names the pattern (`out.pdf`), not the actual file.
 
 ### Where the time goes (Node, desktop)
 
@@ -113,9 +114,10 @@ export function createProgressFilter(onPercent: (percent: number) => void): (lin
 export function callSafely(fn: (percent: number) => void, percent: number): void;
 ```
 
-- Matches `/: write progress: (\d+)%$/`.
-- Reports `p` when `p > last`, or when `p === 0` (a new split output file starts; `last` resets). Otherwise consumes
-  the line silently (linearize repeats).
+- Uses `parseProgressLine` from `src/errors.ts`, which matches `/: write progress: (\d+)%$/` (hard rule 6: qpdf
+  message text is matched only there).
+- Reports `p` when `p > last`, or when `p === 0` and `last !== 0` (a new split output file starts). Otherwise
+  consumes the line silently (repeats).
 
 ### 4.3 Engine — `src/engine.ts`
 
