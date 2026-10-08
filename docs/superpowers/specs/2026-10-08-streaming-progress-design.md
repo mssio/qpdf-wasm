@@ -15,8 +15,9 @@ pdf.mss.io (`mssio/pdf-mss-io`, `docs/todo.md` "Real progress bar").
 
 1. `merge`, `split`, `selectPages`, `rotate`, `encrypt`, `decrypt`, `linearize`, `compress` and `run()` accept
    `onProgress`. `info()` does not (type error).
-2. With `onProgress` set, a large encrypt reports integers rising strictly from 0 to 100, delivered to the main thread
-   while the worker is still running (browser test, all browsers and bundler apps).
+2. With `onProgress` set, a large encrypt reports integers from 0 to 100 that strictly increase once qpdf's repeats are
+   dropped (§3, guarantee 2), delivered to the main thread while the worker is still running (browser test, all
+   browsers and bundler apps).
 3. Progress lines never appear in `RunResult.stdout`/`stderr` when `onProgress` is set. Without it, output is
    byte-for-byte what 1.0.0 produced.
 4. The callback is never called after the job's promise settles or after `terminate()`.
@@ -28,6 +29,7 @@ pdf.mss.io (`mssio/pdf-mss-io`, `docs/todo.md` "Real progress bar").
   `vendor/qpdf` (hard rule 1). Callers show an indeterminate state until the first call (§7).
 - An overall percentage across `split()` output files (it would need an extra qpdf run to count pages).
 - Changes to pdf-mss-io. That repo upgrades and adds its bar afterwards.
+- No file index or phase in the callback; `split()` callers only get the percent for the current file.
 - No qpdf or Emscripten bump.
 
 ## 2. How qpdf reports progress (verified 2026-10-08, qpdf 12.4.2 wasm)
@@ -88,6 +90,8 @@ export interface DecryptOptions extends ProgressOptions {
 5. If the callback throws, the job continues; the error is rethrown asynchronously (`queueMicrotask`), so it surfaces
    as an uncaught error instead of being swallowed. (A throw inside Emscripten's `print` would abort qpdf.)
 6. No progress for `run()` arguments that write no PDF, and none before qpdf starts writing.
+7. Calls are not throttled or batched. Each new percent goes to the callback as soon as it arrives, so there are at
+   most 101 calls per output file. §5's streaming assertion (browser) depends on this; do not add batching later.
 
 ## 4. Architecture and data flow
 
@@ -187,9 +191,13 @@ promise resolved (values streamed instead of arriving in one batch at the end).
 
 - Show an **indeterminate** state ("Preparing…", elapsed time) until the first call, then a percentage. Object-heavy
   files can spend most of a job before 0% (§2).
-- A stuck-job limit should keep a size-based budget until the first call, and only then switch to "no progress for
-  N seconds", with N generous: one large stream can hold a single percent for a long time (482 ms on desktop for
-  compress; phones are several times slower).
+- 100% means "qpdf finished writing this output", not "the caller's job is done". Callers often run more qpdf calls
+  before or after (a password check before, `info()` on the output after). Show a short "Finishing…" state after
+  100% instead of a bar stuck at 100%.
+- Stuck-job limit: before the first call, keep the existing size-based time limit. After the first call, reset a
+  stall timer on every call and fail only when no call has arrived for N seconds. Suggested N: 30 s. One large stream
+  can hold a single percent for a long time: 482 ms on desktop for compress (§2), several times that on phones. 30 s
+  leaves a wide margin above that.
 - `split()`: the percent is for the current output file.
 - `inline: true` in a browser runs qpdf on the main thread, so the page cannot repaint between calls.
 - Drop calls from a job the UI no longer shows (pdf-mss-io: the `generation` check in `useQpdfJob`).
